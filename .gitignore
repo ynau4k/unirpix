@@ -1,0 +1,10 @@
+# Dados locais de cadastro e movimentações financeiras
+*.json
+
+# Arquivos temporários do Python
+__pycache__/
+*.py[cod]
+
+# Ambientes virtuais
+.venv/
+venv/
