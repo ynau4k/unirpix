@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff4f8">
+  <title>Entrar | UnirPix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-card" aria-labelledby="titulo-login">
+      <div class="login-content">
+        <a class="brand" href="{{ url_for('login') }}" aria-label="UnirPix, página inicial">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M8 15 17 7l7 8 8-8 8 8v16c0 7-7 12-16 12S8 38 8 31V15Z" fill="currentColor"/>
+              <path d="M17 24h.1M31 24h.1" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+              <path d="M21 30c2 2 4 2 6 0M7 28l8 1m26-1-8 1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+              <path d="m21 15 3 3 3-3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="brand-name">Unir<span>Pix</span></span>
+        </a>
+
+        <div class="welcome-copy">
+          <span class="eyebrow">Seu cantinho começa aqui</span>
+          <h1 id="titulo-login">Que bom te ver!</h1>
+          <p>Entre na sua conta e venha aproveitar esse espaço feito com carinho.</p>
+        </div>
+
+        {% if mensagem %}
+          <div class="notice" role="status">{{ mensagem }}</div>
+        {% endif %}
+
+        <form id="form-login" class="login-form" method="post" novalidate>
+          <div class="field-group">
+            <label for="cpf">CPF</label>
+            <input
+              id="cpf"
+              name="cpf"
+              type="text"
+              inputmode="numeric"
+              autocomplete="username"
+              placeholder="000.000.000-00"
+              maxlength="14"
+              aria-describedby="cpf-ajuda{% if erros.get('cpf') %} cpf-erro{% endif %}"
+              aria-invalid="{{ 'true' if erros.get('cpf') else 'false' }}"
+              value="{{ request.form.get('cpf', '') }}"
+            >
+            <span id="cpf-ajuda" class="field-hint">Digite os 11 números do seu documento.</span>
+            {% if erros.get('cpf') %}<span id="cpf-erro" class="field-error" role="alert">{{ erros.get('cpf') }}</span>{% endif %}
+          </div>
+
+          <div class="field-group">
+            <label for="senha">Senha</label>
+            <div class="password-wrap">
+              <input
+                id="senha"
+                name="senha"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Digite sua senha"
+                aria-describedby="senha-ajuda{% if erros.get('senha') %} senha-erro{% endif %}"
+                aria-invalid="{{ 'true' if erros.get('senha') else 'false' }}"
+              >
+              <button class="toggle-password" type="button" aria-label="Mostrar senha" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/>
+                  <circle cx="12" cy="12" r="2.8"/>
+                </svg>
+              </button>
+            </div>
+            <span id="senha-ajuda" class="field-hint">Sua senha não será salva nesta etapa.</span>
+            {% if erros.get('senha') %}<span id="senha-erro" class="field-error" role="alert">{{ erros.get('senha') }}</span>{% endif %}
+          </div>
+
+          <button class="submit-button" type="submit">Entrar <span aria-hidden="true">♡</span></button>
+          <p class="form-note">A autenticação da conta será conectada em uma próxima etapa.</p>
+        </form>
+      </div>
+
+      <aside class="cat-panel" aria-label="Ilustração de um gatinho rosa">
+        <span class="sparkle sparkle-one" aria-hidden="true">✦</span>
+        <span class="sparkle sparkle-two" aria-hidden="true">✧</span>
+        <span class="floating-heart heart-one" aria-hidden="true">♥</span>
+        <div class="cat-speech">Oi, que saudade!<span aria-hidden="true">♡</span></div>
+        <img src="{{ url_for('static', filename='imagens/gatos/gatinho-login.svg') }}" alt="Gatinho branco e rosa sorrindo, com um pequeno laço" class="login-cat">
+        <p class="cat-caption">Um pouquinho de carinho<br>para deixar seu dia mais leve.</p>
+        <span class="floating-heart heart-two" aria-hidden="true">♥</span>
+      </aside>
+    </section>
+    <footer class="page-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+  </main>
+  <script src="{{ url_for('static', filename='js/login.js') }}" defer></script>
+</body>
+</html>
