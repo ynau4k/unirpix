@@ -8,3 +8,6 @@ __pycache__/
 # Ambientes virtuais
 .venv/
 venv/
+
+# Sessões server-side e arquivos da instância Flask
+instance/

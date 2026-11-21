@@ -3,17 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Roleta | UnirPix</title>
+  <meta name="theme-color" content="#1b102b">
+  <title>Apostas | UnirPix</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
 </head>
-<body class="placeholder-page">
-  <main class="placeholder-card">
-    <span class="placeholder-icon" aria-hidden="true">✿</span>
-    <p class="eyebrow">UnirPix</p>
-    <h1>A roleta vem depois!</h1>
-    <p>Esta página é somente uma estrutura inicial. Nenhuma aposta ou operação financeira está ativa.</p>
-    <a class="text-link" href="{{ url_for('login') }}">Voltar para o login</a>
+<body>
+  <main class="menu-page roulette-page">
+    <div class="menu-shell roulette-shell">
+      <header class="menu-header">
+        <a class="menu-brand" href="{{ url_for('inicio') }}" aria-label="Voltar ao início do UnirPix">
+          <span class="menu-brand-mark" aria-hidden="true">♡</span>
+          <span>Unir<span>Pix</span></span>
+        </a>
+        <a class="logout-button roulette-back" href="{{ url_for('inicio') }}">Voltar ao início</a>
+      </header>
+
+      <section class="roulette-card" aria-labelledby="roulette-title">
+        <div class="roulette-heading">
+          <span class="roulette-icon" aria-hidden="true">✦</span>
+          <div>
+            <p class="menu-kicker">Um pouquinho de sorte</p>
+            <h1 id="roulette-title">Roleta da sorte</h1>
+          </div>
+        </div>
+
+        {% if saldo is not none %}
+          <p class="roulette-balance">Saldo disponível <strong>R$ {{ "{:,.2f}".format(saldo).replace(",", "_").replace(".", ",").replace("_", ".") }}</strong></p>
+        {% else %}
+          <p class="roulette-balance">Não foi possível consultar seu saldo agora.</p>
+        {% endif %}
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+          {% for categoria, mensagem in mensagens %}
+            <div class="notice roulette-notice notice-{{ categoria }}" role="{{ 'status' if categoria in ['success', 'game-result'] else 'alert' }}"{% if spin_result %} data-spin-result hidden{% endif %}>{{ mensagem }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <div class="wheel-stage" id="wheel-stage" aria-label="Roleta com números de zero a dez"
+          {% if spin_result %}
+          data-result-number="{{ spin_result.number }}"
+          data-chosen-number="{{ spin_result.chosen }}"
+          data-result-outcome="{{ spin_result.outcome }}"
+          {% endif %}>
+          <div class="wheel-pointer" aria-hidden="true"><span></span></div>
+          <div class="wheel-frame">
+            <svg class="roulette-wheel" id="roulette-wheel" viewBox="0 0 420 420" role="img" aria-label="Roleta numerada de 0 a 10">
+              <circle class="wheel-shadow" cx="210" cy="210" r="205"></circle>
+              <g class="wheel-rotor" id="wheel-rotor" aria-hidden="true"></g>
+              <circle class="wheel-hub-ring" cx="210" cy="210" r="39"></circle>
+              <circle class="wheel-hub" cx="210" cy="210" r="29"></circle>
+              <text class="wheel-hub-text" x="210" y="214">UNIR</text>
+            </svg>
+          </div>
+        </div>
+        <p class="wheel-selection" aria-live="polite">Seu palpite: <strong id="wheel-selection-number">Escolha um número</strong></p>
+
+        <form id="form-aposta" class="login-form roulette-form" method="post" action="{{ url_for('roleta') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="aposta_token" value="{{ aposta_token }}">
+
+          <div class="field-group">
+            <label for="numero">Escolha um número</label>
+            <select id="numero" name="numero" required>
+              <option value="" disabled{% if not spin_result %} selected{% endif %}>Selecione de 0 a 10</option>
+              {% for numero in range(11) %}
+                <option value="{{ numero }}"{% if spin_result and spin_result.chosen == numero %} selected{% endif %}>{{ numero }}</option>
+              {% endfor %}
+            </select>
+            <span class="field-hint">A roleta sorteia um número de 0 a 10.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="valor">Valor da aposta</label>
+            <input
+              id="valor"
+              name="valor"
+              type="text"
+              inputmode="decimal"
+              maxlength="20"
+              placeholder="0,00"
+              autocomplete="off"
+              required
+            >
+            <span class="field-hint">A aposta precisa caber no saldo caso o resultado seja uma derrota.</span>
+          </div>
+
+          <button class="submit-button roulette-submit" type="submit">Girar roleta <span aria-hidden="true">♡</span></button>
+        </form>
+        <p class="roulette-prize-note">Se acertar, você recebe 10 vezes o valor apostado. Se errar, o valor da aposta é descontado.</p>
+        <noscript><p class="roulette-no-script">Ative o JavaScript para girar a roleta animada. O formulário continua protegido pelo servidor.</p></noscript>
+      </section>
+      <footer class="menu-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+    </div>
   </main>
+  {% if spin_result %}<noscript><style>[data-spin-result][hidden]{display:block}</style></noscript>{% endif %}
   <script src="{{ url_for('static', filename='js/roleta.js') }}" defer></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#fff4f8">
+  <meta name="theme-color" content="#1b102b">
   <title>Entrar | UnirPix</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
 </head>
@@ -34,6 +34,7 @@
         {% endif %}
 
         <form id="form-login" class="login-form" method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="field-group">
             <label for="cpf">CPF</label>
             <input
@@ -71,22 +72,24 @@
                 </svg>
               </button>
             </div>
-            <span id="senha-ajuda" class="field-hint">Sua senha não será salva nesta etapa.</span>
+            <span id="senha-ajuda" class="field-hint">Use sua senha para acessar sua conta.</span>
             {% if erros.get('senha') %}<span id="senha-erro" class="field-error" role="alert">{{ erros.get('senha') }}</span>{% endif %}
           </div>
 
           <button class="submit-button" type="submit">Entrar <span aria-hidden="true">♡</span></button>
-          <p class="form-note">A autenticação da conta será conectada em uma próxima etapa.</p>
+          <p class="form-note">Se ainda não tem uma conta, <a class="text-link" href="{{ url_for('cadastro') }}">faça seu cadastro</a>.</p>
         </form>
       </div>
 
-      <aside class="cat-panel" aria-label="Ilustração de um gatinho rosa">
-        <span class="sparkle sparkle-one" aria-hidden="true">✦</span>
-        <span class="sparkle sparkle-two" aria-hidden="true">✧</span>
-        <span class="floating-heart heart-one" aria-hidden="true">♥</span>
-        <div class="cat-speech">Oi, que saudade!<span aria-hidden="true">♡</span></div>
-        <img src="{{ url_for('static', filename='imagens/gatos/gatinho-login.svg') }}" alt="Gatinho branco e rosa sorrindo, com um pequeno laço" class="login-cat">
-        <p class="cat-caption">Um pouquinho de carinho<br>para deixar seu dia mais leve.</p>
+      <aside class="cat-panel" aria-label="Ilustração de uma gata preta">
+        <svg class="night-sky" viewBox="0 0 420 420" aria-hidden="true">
+          <path class="moon-shape" d="M264 45a86 86 0 1 0 91 126 73 73 0 0 1-91-126Z"/>
+          <path class="sky-star" d="m94 94 3 8 8 3-8 3-3 8-3-8-8-3 8-3 3-8Zm241 105 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/>
+          <circle class="sky-dot" cx="126" cy="168" r="2.2"/><circle class="sky-dot" cx="317" cy="80" r="2"/>
+          <circle class="sky-dot" cx="342" cy="245" r="1.7"/><circle class="sky-dot" cx="84" cy="250" r="1.8"/>
+        </svg>
+        <img src="{{ url_for('static', filename='imagens/gatos/gata-preta-transparente.png') }}" alt="Gata preta em perfil, caminhando para a direita" class="login-cat">
+        <p class="cat-caption">Qual a sua aposta para hoje?</p>
         <span class="floating-heart heart-two" aria-hidden="true">♥</span>
       </aside>
     </section>

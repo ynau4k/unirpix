@@ -1,50 +1,101 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" role="img" aria-labelledby="titulo descricao">
-  <title id="titulo">Gatinho kawaii com laço</title>
-  <desc id="descricao">Um gatinho branco e rosado sentado, com bochechas coradas e um laço na cabeça.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-labelledby="titulo descricao">
+  <title id="titulo">Gata preta altiva em violeta</title>
+  <desc id="descricao">Gata preta esguia em pé, com olhar estreito e elegante, cauda longa em curva e bigodes finos que seguem além das bordas.</desc>
   <defs>
-    <linearGradient id="corpo" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#fffdfd"/>
-      <stop offset="1" stop-color="#ffe9f1"/>
+    <linearGradient id="pelo" x1=".15" y1=".1" x2=".85" y2=".9">
+      <stop offset="0" stop-color="#292331"/>
+      <stop offset=".38" stop-color="#111018"/>
+      <stop offset=".78" stop-color="#08080d"/>
+      <stop offset="1" stop-color="#21192a"/>
     </linearGradient>
-    <linearGradient id="laco" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ff9fc1"/>
-      <stop offset="1" stop-color="#ec6e9e"/>
+    <linearGradient id="luzPelo" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#bca5df" stop-opacity=".04"/>
+      <stop offset=".5" stop-color="#bca5df" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#bca5df" stop-opacity=".02"/>
     </linearGradient>
+    <linearGradient id="olho" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8c5f1"/>
+      <stop offset="1" stop-color="#8060a7"/>
+    </linearGradient>
+    <radialGradient id="aureola">
+      <stop offset="0" stop-color="#8a6aad" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#35204f" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="sombra" x="-.35" y="-.2" width="1.7" height="1.5">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
   </defs>
 
-  <!-- Sombra suave para apoiar o personagem na cena. -->
-  <ellipse cx="213" cy="370" rx="133" ry="20" fill="#e89bb5" opacity=".2"/>
+  <!-- Halo discreto para separar o pelo escuro do fundo roxo da interface. -->
+  <ellipse cx="245" cy="263" rx="199" ry="225" fill="url(#aureola)"/>
+  <ellipse cx="235" cy="482" rx="110" ry="11" fill="#09070f" opacity=".55" filter="url(#sombra)"/>
 
-  <!-- Cauda e corpo do gatinho. -->
-  <path d="M302 282c52 1 64 43 42 62-17 14-40 6-41-13 0-10 8-16 17-12" fill="none" stroke="#f4c7d5" stroke-width="24" stroke-linecap="round"/>
-  <path d="M111 258c-10 46 6 104 50 112h112c40-11 50-59 39-105" fill="url(#corpo)" stroke="#eec8d6" stroke-width="5"/>
-  <ellipse cx="222" cy="329" rx="49" ry="46" fill="#fff" opacity=".7"/>
+  <!-- Cauda longa, levantada e curvada para trás. -->
+  <path d="M278 341 C340 372 395 373 431 341 C470 306 460 257 426 236 C405 223 390 204 399 181 C404 168 416 160 430 158"
+        fill="none" stroke="#08080d" stroke-width="19" stroke-linecap="round"/>
+  <path d="M278 341 C340 372 395 373 431 341 C470 306 460 257 426 236 C405 223 390 204 399 181 C404 168 416 160 430 158"
+        fill="none" stroke="url(#luzPelo)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M290 348 C350 374 398 361 432 328" fill="none" stroke="#4a3b5a" stroke-width="1.2" opacity=".75"/>
 
-  <!-- Orelhas e rosto. -->
-  <path d="m109 110 5-75c1-14 17-20 28-10l52 48m16 1 56-48c12-10 29-2 28 13l-4 78" fill="url(#corpo)" stroke="#eec8d6" stroke-width="5" stroke-linejoin="round"/>
-  <path d="m127 98 3-43c1-7 7-9 13-4l37 33m50-1 39-34c5-5 12-2 11 5l-3 46" fill="#f5adc5"/>
-  <path d="M103 139c0-59 48-101 112-101s111 42 111 101v71c0 63-48 101-111 101s-112-38-112-101z" fill="url(#corpo)" stroke="#eec8d6" stroke-width="5"/>
+  <!-- Silhueta esguia, em pé, com patas inteiras e postura firme. -->
+  <path d="M199 199
+    C188 213 179 233 179 256
+    C178 280 188 300 193 319
+    C199 344 185 368 184 398
+    C183 426 187 451 187 473
+    Q198 481 211 473
+    L218 407 C220 383 228 359 239 342
+    C251 364 255 391 257 416
+    L259 473 Q272 481 285 472
+    L278 405 C275 380 287 354 298 329
+    C309 303 307 266 299 240
+    C291 215 273 199 254 190
+    C236 204 216 207 199 199Z"
+    fill="url(#pelo)" stroke="#30283a" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M194 254 C190 290 204 314 199 343 C195 377 194 430 198 466"
+        fill="none" stroke="url(#luzPelo)" stroke-width="5" opacity=".55"/>
+  <path d="M288 252 C301 294 285 319 282 343 C278 377 276 428 277 466"
+        fill="none" stroke="url(#luzPelo)" stroke-width="4" opacity=".48"/>
+  <path d="M222 365 C217 397 215 436 211 465 M244 365 C251 398 254 437 259 466"
+        fill="none" stroke="#74618b" stroke-width="1.4" opacity=".48"/>
+  <path d="M188 472 Q198 477 211 472 M259 472 Q272 478 284 471"
+        fill="none" stroke="#655578" stroke-width="1.5" opacity=".7"/>
 
-  <!-- Laço delicado no topo da cabeça. -->
-  <path d="M261 48c-20-28-56-30-69-18-13 13 3 45 29 54 18 7 38-10 40-36Zm-4 2c21-27 57-26 69-12 12 14-7 45-33 52-19 5-37-13-36-40Z" fill="url(#laco)" stroke="#dc5e8d" stroke-width="4"/>
-  <circle cx="258" cy="51" r="12" fill="#ffd8e5" stroke="#dc5e8d" stroke-width="4"/>
+  <!-- Cabeça fina e orelhas altas. -->
+  <path d="M179 121 L174 48 Q174 36 182 46 L217 93
+    M273 93 L307 45 Q315 34 316 49 L310 127"
+        fill="url(#pelo)" stroke="#40364d" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M185 79 L181 56 L199 86 M292 84 L309 56 L306 84"
+        fill="none" stroke="#69557f" stroke-width="1.6" opacity=".72"/>
+  <path d="M176 121 C181 88 207 68 241 67 C280 66 308 91 314 124
+    C320 158 306 185 284 203 C266 218 250 225 240 223
+    C226 222 207 211 191 193 C174 175 169 149 176 121Z"
+        fill="url(#pelo)" stroke="#40364d" stroke-width="2.6"/>
 
-  <!-- Olhos, focinho, bigodes e bochechas. -->
-  <ellipse cx="166" cy="174" rx="8" ry="12" fill="#59404b"/>
-  <ellipse cx="264" cy="174" rx="8" ry="12" fill="#59404b"/>
-  <circle cx="169" cy="170" r="2.5" fill="#fff"/>
-  <circle cx="267" cy="170" r="2.5" fill="#fff"/>
-  <ellipse cx="139" cy="200" rx="19" ry="10" fill="#ffb6cd" opacity=".75"/>
-  <ellipse cx="291" cy="200" rx="19" ry="10" fill="#ffb6cd" opacity=".75"/>
-  <path d="m207 190 8 6 8-6c1 9-3 14-8 14s-9-5-8-14Z" fill="#e97e9f"/>
-  <path d="M215 204c-2 9-12 12-18 6m18-6c2 9 12 12 18 6" fill="none" stroke="#59404b" stroke-width="4" stroke-linecap="round"/>
-  <path d="m137 188-43-8m44 19-44 4m184-15 43-8m-43 19 44 4" fill="none" stroke="#d8a6b7" stroke-width="3" stroke-linecap="round"/>
+  <!-- Planos de luz violeta modelam as feições sem suavizar a expressão. -->
+  <path d="M183 118 C193 89 216 75 238 74" fill="none" stroke="#83719a" stroke-width="2" opacity=".42"/>
+  <path d="M298 116 C292 94 276 81 259 76" fill="none" stroke="#a18abf" stroke-width="1.8" opacity=".38"/>
+  <path d="M211 121 Q226 113 238 121 Q227 126 211 121Z" fill="url(#olho)"/>
+  <path d="M250 121 Q264 113 280 120 Q265 127 250 121Z" fill="url(#olho)"/>
+  <path d="M224 118 L225 123 M264 117 L264 123" stroke="#100c17" stroke-width="2.1" stroke-linecap="round"/>
+  <path d="M211 119 Q226 111 239 119 M250 119 Q265 111 280 118" fill="none" stroke="#09080e" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M238 140 Q242 138 246 140 L243 144 Q240 143 238 140Z" fill="#b39bd3"/>
+  <path d="M242 144 Q239 151 232 150 M243 144 Q247 151 254 149"
+        fill="none" stroke="#9d8bac" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M196 131 Q205 127 212 131 M280 130 Q289 126 296 130"
+        fill="none" stroke="#665873" stroke-width="1.1" opacity=".75"/>
 
-  <!-- Patinhas e pequeno coração na barriga. -->
-  <path d="M147 340c-5 15 2 26 19 26h28c14-1 17-10 11-24m22 0c-7 14-4 23 10 24h28c17 0 24-11 19-26" fill="#fff" stroke="#eec8d6" stroke-width="4"/>
-  <path d="M214 292c-8-10-21 2 0 18 21-16 8-28 0-18Z" fill="#f28aac"/>
-
-  <!-- Brilhinhos decorativos. -->
-  <path d="M63 131v22m-11-11h22M347 226v20m-10-10h20M91 294v16m-8-8h16" stroke="#f29bb7" stroke-width="4" stroke-linecap="round"/>
-  <path d="m345 103 4 9 9 4-9 4-4 9-4-9-9-4 9-4 4-9Z" fill="#f6b5ca"/>
+  <!-- Bigodes longos e finos; as linhas atravessam as bordas da composição. -->
+  <g fill="none" stroke="#c8b8df" stroke-width="1.15" stroke-linecap="round" opacity=".88">
+    <path d="M198 145 C139 127 74 111 -28 100"/>
+    <path d="M197 151 C127 146 65 148 -34 158"/>
+    <path d="M199 158 C133 170 68 192 -24 215"/>
+    <path d="M287 144 C346 125 412 110 528 98"/>
+    <path d="M288 151 C360 143 428 145 534 155"/>
+    <path d="M286 159 C351 172 419 192 525 216"/>
+  </g>
+  <g fill="none" stroke="#8d77a7" stroke-width=".75" stroke-linecap="round" opacity=".72">
+    <path d="M198 149 C135 137 81 131 -7 123"/>
+    <path d="M288 148 C356 137 423 129 506 121"/>
+  </g>
 </svg>

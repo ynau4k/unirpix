@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b102b">
+  <title>Histórico | UnirPix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+</head>
+<body>
+  <main class="menu-page history-page">
+    <div class="menu-shell history-shell">
+      <header class="menu-header">
+        <a class="menu-brand" href="{{ url_for('inicio') }}" aria-label="Voltar ao início do UnirPix">
+          <span class="menu-brand-mark" aria-hidden="true">♡</span>
+          <span>Unir<span>Pix</span></span>
+        </a>
+        <a class="logout-button history-back" href="{{ url_for('inicio') }}">Voltar ao início</a>
+      </header>
+
+      <section class="history-card" aria-labelledby="history-title">
+        <p class="menu-kicker">Suas atividades</p>
+        <h1 id="history-title">Histórico</h1>
+        <p class="history-intro">Depósitos e resultados da roleta da sua conta.</p>
+
+        {% if registros %}
+          <ol class="history-list">
+            {% for registro in registros %}
+              <li class="history-item">
+                <div class="history-item-copy">
+                  <h2>{{ registro.titulo }}</h2>
+                  <p>{{ registro.detalhe }}</p>
+                  <time>{{ registro.data }}</time>
+                </div>
+                <strong class="history-effect">{{ registro.efeito }}</strong>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="history-empty">Ainda não há depósitos ou apostas para mostrar.</p>
+        {% endif %}
+      </section>
+      <footer class="menu-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+    </div>
+  </main>
+</body>
+</html>

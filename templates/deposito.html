@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b102b">
+  <title>Depósito | UnirPix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+</head>
+<body>
+  <main class="menu-page deposit-page">
+    <div class="menu-shell deposit-shell">
+      <header class="menu-header">
+        <a class="menu-brand" href="{{ url_for('inicio') }}" aria-label="Voltar ao início do UnirPix">
+          <span class="menu-brand-mark" aria-hidden="true">♡</span>
+          <span>Unir<span>Pix</span></span>
+        </a>
+        <a class="logout-button deposit-back" href="{{ url_for('inicio') }}">Voltar ao início</a>
+      </header>
+
+      <section class="deposit-card" aria-labelledby="deposit-title">
+        <p class="menu-kicker">Sua carteira</p>
+        <h1 id="deposit-title">Adicionar saldo</h1>
+        {% if saldo is not none %}
+          <p class="deposit-current-balance">Saldo atual <strong>R$ {{ "{:,.2f}".format(saldo).replace(",", "_").replace(".", ",").replace("_", ".") }}</strong></p>
+        {% else %}
+          <p class="deposit-current-balance">Não foi possível consultar seu saldo agora.</p>
+        {% endif %}
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+          {% for categoria, mensagem in mensagens %}
+            <div class="notice deposit-notice notice-{{ categoria }}" role="{{ 'status' if categoria == 'success' else 'alert' }}">{{ mensagem }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <form class="login-form deposit-form" method="post" action="{{ url_for('deposito') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if deposit_token %}<input type="hidden" name="deposit_token" value="{{ deposit_token }}">{% endif %}
+          <div class="field-group">
+            <label for="valor">Valor do depósito</label>
+            <input
+              id="valor"
+              name="valor"
+              type="text"
+              inputmode="decimal"
+              placeholder="0,00"
+              maxlength="20"
+              autocomplete="off"
+              required
+            >
+            <span class="field-hint">Informe um valor positivo.</span>
+          </div>
+          <button class="submit-button" type="submit">Confirmar depósito <span aria-hidden="true">♡</span></button>
+        </form>
+      </section>
+      <footer class="menu-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+    </div>
+  </main>
+</body>
+</html>
