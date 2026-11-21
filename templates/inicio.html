@@ -50,14 +50,14 @@
       </section>
 
       <section class="menu-grid" aria-label="Menu principal">
-        <a class="menu-card menu-card-apostas menu-card-link" href="{{ url_for('roleta') }}">
+        <a class="menu-card menu-card-apostas menu-card-link" href="{{ url_for('jogos') if historico_ativo is defined else url_for('roleta') }}">
           <span class="menu-card-icon" aria-hidden="true">
             <img src="{{ url_for('static', filename='imagens/gatos/gata-preta-perfil.png', v='20261115') }}" alt="" style="display:block;width:100%;height:auto;border-radius:12px;">
           </span>
           <div class="menu-card-copy">
             <h2>Apostas</h2>
-            <p>Encontre seus jogos e descubra o que vem pela frente.</p>
-            <span class="menu-card-tag">Jogar agora</span>
+            <p>{% if historico_ativo is defined %}Escolha entre a roleta numérica e os gatinhos giratórios.{% else %}Encontre seus jogos e descubra o que vem pela frente.{% endif %}</p>
+            <span class="menu-card-tag">{{ 'Escolher jogo' if historico_ativo is defined else 'Jogar agora' }}</span>
           </div>
         </a>
 

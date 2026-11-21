@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b102b">
+  <title>Escolha um jogo | UnirPix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+</head>
+<body>
+  <main class="menu-page">
+    <div class="menu-shell">
+      <header class="menu-header">
+        <a class="menu-brand" href="{{ url_for('inicio') }}" aria-label="Voltar ao início do UnirPix">
+          <span class="menu-brand-mark" aria-hidden="true">♡</span>
+          <span>Unir<span>Pix</span></span>
+        </a>
+        <p class="menu-kicker">Olá, {{ nome_usuario }}</p>
+      </header>
+
+      <section class="menu-intro game-picker-intro">
+        <div>
+          <p class="menu-kicker">Um cantinho de diversão</p>
+          <h1>Qual jogo vamos abrir?</h1>
+          <p>Escolha seu jogo e divirta-se com saldo fictício.</p>
+        </div>
+        <span class="game-picker-mark" aria-hidden="true">✦</span>
+      </section>
+
+      <section class="game-picker-grid" aria-label="Jogos disponíveis">
+        <a class="game-picker-card game-picker-roulette" href="{{ url_for('roleta') }}">
+          <span class="game-picker-icon" aria-hidden="true">0—10</span>
+          <span class="menu-kicker">Onze números</span>
+          <h2>Roleta numérica</h2>
+          <p>Escolha um número de 0 a 10 e veja onde a roleta vai parar.</p>
+          <span class="menu-card-tag">Abrir roleta</span>
+        </a>
+        <a class="game-picker-card game-picker-slots" href="{{ url_for('caca_niqueis') }}">
+          <span class="game-picker-icon" aria-hidden="true">🐈</span>
+          <span class="menu-kicker">Três rolos</span>
+          <h2>Gatinhos giratórios</h2>
+          <p>Gire três rolos ilustrados e tente formar uma trinca de gatos iguais.</p>
+          <span class="menu-card-tag">Abrir caça-níqueis</span>
+        </a>
+      </section>
+      <footer class="menu-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+    </div>
+  </main>
+</body>
+</html>

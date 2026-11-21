@@ -132,7 +132,9 @@ CREATE TABLE financial_transactions (
     user_id INTEGER NOT NULL
         REFERENCES users(user_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
     operation_type TEXT NOT NULL
-        CHECK (operation_type IN ('opening_balance', 'deposit', 'bet_win', 'bet_loss')),
+        CHECK (operation_type IN (
+            'opening_balance', 'deposit', 'bet_win', 'bet_loss', 'slot_win', 'slot_loss'
+        )),
     delta_cents INTEGER NOT NULL CHECK (
         typeof(delta_cents) = 'integer'
         AND delta_cents >= -100000000000
@@ -147,6 +149,9 @@ CREATE TABLE financial_transactions (
     chosen_number INTEGER,
     drawn_number INTEGER,
     outcome TEXT,
+    slot_symbol_1 INTEGER,
+    slot_symbol_2 INTEGER,
+    slot_symbol_3 INTEGER,
     CHECK (
         (source_file IS NULL AND source_row IS NULL)
         OR (source_file IS NOT NULL AND source_row IS NOT NULL
@@ -156,18 +161,23 @@ CREATE TABLE financial_transactions (
     CHECK (wager_cents IS NULL OR typeof(wager_cents) = 'integer'),
     CHECK (chosen_number IS NULL OR typeof(chosen_number) = 'integer'),
     CHECK (drawn_number IS NULL OR typeof(drawn_number) = 'integer'),
+    CHECK (slot_symbol_1 IS NULL OR typeof(slot_symbol_1) = 'integer'),
+    CHECK (slot_symbol_2 IS NULL OR typeof(slot_symbol_2) = 'integer'),
+    CHECK (slot_symbol_3 IS NULL OR typeof(slot_symbol_3) = 'integer'),
     CHECK (
         (operation_type = 'opening_balance'
             AND delta_cents >= 0
             AND amount_cents IS NULL AND wager_cents IS NULL
-            AND chosen_number IS NULL AND drawn_number IS NULL AND outcome IS NULL)
+            AND chosen_number IS NULL AND drawn_number IS NULL AND outcome IS NULL
+            AND slot_symbol_1 IS NULL AND slot_symbol_2 IS NULL AND slot_symbol_3 IS NULL)
         OR
         (operation_type = 'deposit'
             AND delta_cents > 0 AND amount_cents IS NOT NULL
             AND amount_cents = delta_cents
             AND amount_cents <= 100000000000
             AND wager_cents IS NULL AND chosen_number IS NULL
-            AND drawn_number IS NULL AND outcome IS NULL)
+            AND drawn_number IS NULL AND outcome IS NULL
+            AND slot_symbol_1 IS NULL AND slot_symbol_2 IS NULL AND slot_symbol_3 IS NULL)
         OR
         (operation_type = 'bet_win'
             AND amount_cents IS NULL
@@ -180,7 +190,8 @@ CREATE TABLE financial_transactions (
             AND outcome IS NOT NULL
             AND wager_cents BETWEEN 1 AND 100000000000
             AND chosen_number BETWEEN 0 AND 10 AND drawn_number = chosen_number
-            AND outcome = 'win' AND delta_cents = wager_cents * 10)
+            AND outcome = 'win' AND delta_cents = wager_cents * 10
+            AND slot_symbol_1 IS NULL AND slot_symbol_2 IS NULL AND slot_symbol_3 IS NULL)
         OR
         (operation_type = 'bet_loss'
             AND amount_cents IS NULL
@@ -194,7 +205,36 @@ CREATE TABLE financial_transactions (
             AND wager_cents BETWEEN 1 AND 100000000000
             AND chosen_number BETWEEN 0 AND 10 AND drawn_number BETWEEN 0 AND 10
             AND drawn_number <> chosen_number
-            AND outcome = 'loss' AND delta_cents = -wager_cents)
+            AND outcome = 'loss' AND delta_cents = -wager_cents
+            AND slot_symbol_1 IS NULL AND slot_symbol_2 IS NULL AND slot_symbol_3 IS NULL)
+        OR
+        (operation_type = 'slot_win'
+            AND amount_cents IS NULL AND wager_cents IS NOT NULL
+            AND typeof(wager_cents) = 'integer'
+            AND wager_cents BETWEEN 1 AND 100000000000
+            AND chosen_number IS NULL AND drawn_number IS NULL
+            AND outcome = 'win' AND delta_cents = wager_cents * 120
+            AND slot_symbol_1 BETWEEN 0 AND 10
+            AND slot_symbol_2 BETWEEN 0 AND 10
+            AND slot_symbol_3 BETWEEN 0 AND 10
+            AND typeof(slot_symbol_1) = 'integer'
+            AND typeof(slot_symbol_2) = 'integer'
+            AND typeof(slot_symbol_3) = 'integer'
+            AND slot_symbol_1 = slot_symbol_2 AND slot_symbol_2 = slot_symbol_3)
+        OR
+        (operation_type = 'slot_loss'
+            AND amount_cents IS NULL AND wager_cents IS NOT NULL
+            AND typeof(wager_cents) = 'integer'
+            AND wager_cents BETWEEN 1 AND 100000000000
+            AND chosen_number IS NULL AND drawn_number IS NULL
+            AND outcome = 'loss' AND delta_cents = -wager_cents
+            AND slot_symbol_1 BETWEEN 0 AND 10
+            AND slot_symbol_2 BETWEEN 0 AND 10
+            AND slot_symbol_3 BETWEEN 0 AND 10
+            AND typeof(slot_symbol_1) = 'integer'
+            AND typeof(slot_symbol_2) = 'integer'
+            AND typeof(slot_symbol_3) = 'integer'
+            AND (slot_symbol_1 <> slot_symbol_2 OR slot_symbol_2 <> slot_symbol_3))
     )
 );
 
@@ -212,8 +252,12 @@ CREATE VIEW deposits AS
 
 CREATE VIEW bets AS
     SELECT transaction_id, wager_cents, chosen_number, drawn_number, outcome,
+           CASE WHEN operation_type IN ('slot_win', 'slot_loss') THEN 'slot' ELSE 'roulette' END
+               AS game_type,
+           slot_symbol_1, slot_symbol_2, slot_symbol_3,
            delta_cents AS balance_delta_cents, occurred_at
-    FROM financial_transactions WHERE operation_type IN ('bet_win', 'bet_loss');
+    FROM financial_transactions
+    WHERE operation_type IN ('bet_win', 'bet_loss', 'slot_win', 'slot_loss');
 
 CREATE TABLE legacy_history (
     legacy_id INTEGER PRIMARY KEY,
@@ -245,7 +289,7 @@ CREATE TABLE idempotency_keys (
     ),
     user_id INTEGER NOT NULL
         REFERENCES users(user_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
-    operation_type TEXT NOT NULL CHECK (operation_type IN ('deposit', 'bet')),
+    operation_type TEXT NOT NULL CHECK (operation_type IN ('deposit', 'bet', 'slot')),
     state TEXT NOT NULL CHECK (state IN ('processing', 'completed')),
     transaction_id INTEGER UNIQUE
         REFERENCES financial_transactions(transaction_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
@@ -301,6 +345,18 @@ BEGIN
              FROM accounts WHERE user_id = NEW.user_id) > 100000000000
         )
         THEN RAISE(ABORT, 'bet lacks loss coverage or maximum prize capacity')
+        WHEN NEW.operation_type IN ('slot_win', 'slot_loss') AND NOT EXISTS (
+            SELECT 1 FROM idempotency_keys
+            WHERE user_id = NEW.user_id AND operation_type = 'slot' AND state = 'processing'
+        )
+        THEN RAISE(ABORT, 'slot requires a processing idempotency key')
+        WHEN NEW.operation_type IN ('slot_win', 'slot_loss') AND (
+            (SELECT balance_cents FROM accounts WHERE user_id = NEW.user_id) < NEW.wager_cents
+            OR
+            (SELECT balance_cents + NEW.wager_cents * 120
+             FROM accounts WHERE user_id = NEW.user_id) > 100000000000
+        )
+        THEN RAISE(ABORT, 'slot lacks loss coverage or maximum prize capacity')
     END;
 END;
 
@@ -442,6 +498,8 @@ WHEN OLD.state <> 'processing'
             (NEW.operation_type = 'deposit' AND ft.operation_type = 'deposit')
             OR
             (NEW.operation_type = 'bet' AND ft.operation_type IN ('bet_win', 'bet_loss'))
+            OR
+            (NEW.operation_type = 'slot' AND ft.operation_type IN ('slot_win', 'slot_loss'))
         )
         AND json_valid(NEW.result_json)
         AND json_extract(NEW.result_json, '$.transaction_id') = ft.transaction_id
@@ -456,6 +514,9 @@ WHEN OLD.state <> 'processing'
         AND json_extract(NEW.result_json, '$.outcome') IS ft.outcome
         AND json_extract(NEW.result_json, '$.chosen_number') IS ft.chosen_number
         AND json_extract(NEW.result_json, '$.drawn_number') IS ft.drawn_number
+        AND json_extract(NEW.result_json, '$.slot_symbols[0]') IS ft.slot_symbol_1
+        AND json_extract(NEW.result_json, '$.slot_symbols[1]') IS ft.slot_symbol_2
+        AND json_extract(NEW.result_json, '$.slot_symbols[2]') IS ft.slot_symbol_3
   )
 BEGIN
     SELECT RAISE(ABORT, 'idempotency completion does not match its financial transaction');

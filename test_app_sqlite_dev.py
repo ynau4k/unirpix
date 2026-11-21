@@ -92,6 +92,17 @@ class TestAppSQLiteDev(unittest.TestCase):
             data["cpf"] = cpf_override
         return client.post("/roleta", data=data)
 
+    def _slot(self, amount, client=None, cpf_override=None, csrf=None, token=None):
+        client = client or self.client
+        if csrf is None or token is None:
+            page = client.get("/caca-niqueis")
+            csrf = self._csrf(page)
+            token = self._campo(page, "aposta_slot_token")
+        data = {"csrf_token": csrf, "aposta_slot_token": token, "valor": amount}
+        if cpf_override:
+            data["cpf"] = cpf_override
+        return client.post("/caca-niqueis", data=data)
+
     def _balance(self, user_id):
         return persistencia.consultar_conta(self.database, user_id)["balance_cents"]
 
@@ -208,6 +219,98 @@ class TestAppSQLiteDev(unittest.TestCase):
         history = self.client.get("/historico").get_data(as_text=True)
         self.assertIn("Aposta vencedora", history)
         self.assertIn("Aposta perdida", history)
+
+    def test_menu_escolhe_jogo_e_slot_processa_resultado_no_servidor(self):
+        self._signup()
+        user = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        self._login()
+        self._deposit("2,00")
+        home = self.client.get("/inicio").get_data(as_text=True)
+        self.assertIn('href="/jogos"', home)
+        games = self.client.get("/jogos").get_data(as_text=True)
+        self.assertIn('href="/roleta"', games)
+        self.assertIn('href="/caca-niqueis"', games)
+        page = self.client.get("/caca-niqueis")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("gatos-simbolos.svg", page.get_data(as_text=True))
+        token = self._campo(page, "aposta_slot_token")
+
+        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[7, 7, 7]) as draw:
+            response = self._slot("0,01", csrf=self._csrf(page), token=token)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(draw.call_count, 3)
+        self.assertEqual(self._balance(user["user_id"]), 320)
+        result_page = self.client.get("/caca-niqueis")
+        html = result_page.get_data(as_text=True)
+        self.assertIn('data-symbol-1="7"', html)
+        self.assertIn('data-symbol-2="7"', html)
+        self.assertIn('data-symbol-3="7"', html)
+        self.assertIn('data-result-outcome="win"', html)
+        self.assertIn("Trinca de gatinhos! Você venceu!", html)
+        self.assertNotRegex(html, r'name="(?:resultado|simbolos_sorteados)"')
+        refreshed = self.client.get("/caca-niqueis").get_data(as_text=True)
+        self.assertNotIn("data-symbol-1", refreshed)
+        self.assertEqual(self._balance(user["user_id"]), 320)
+
+    def test_slot_derrota_historico_e_cpf_enviado_nao_muda_a_conta(self):
+        self._signup(self.cpf_a, "Conta Slot A", self.senha_a)
+        self._signup(self.cpf_b, "Conta Slot B", self.senha_b, client=self.app.test_client())
+        user_a = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        user_b = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_b)
+        self._login()
+        self._deposit("5,00", cpf_override=self.cpf_b)
+        page = self.client.get("/caca-niqueis")
+        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[1, 2, 1]) as draw:
+            self._slot("1,25", cpf_override=self.cpf_b, csrf=self._csrf(page), token=self._campo(page, "aposta_slot_token"))
+        self.assertEqual(draw.call_count, 3)
+        self.assertEqual(self._balance(user_a["user_id"]), 375)
+        self.assertEqual(self._balance(user_b["user_id"]), 0)
+        result = self.client.get("/caca-niqueis").get_data(as_text=True)
+        self.assertIn("Desta vez, os gatinhos não combinaram.", result)
+        self.assertIn("Gatos sorteados: 1 · 2 · 1", result)
+        history = self.client.get("/historico").get_data(as_text=True)
+        self.assertIn("Caça-níqueis perdido", history)
+        self.assertIn("Gatos sorteados: 1 · 2 · 1", history)
+
+    def test_slot_exige_login_csrf_e_token_de_uso_unico(self):
+        self.assertEqual(self.client.get("/caca-niqueis").status_code, 302)
+        self._signup()
+        self._login()
+        user = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        self._deposit("5,00")
+        page = self.client.get("/caca-niqueis")
+        token = self._campo(page, "aposta_slot_token")
+        with patch("app_sqlite_dev.secrets.randbelow") as draw:
+            missing_csrf = self.client.post("/caca-niqueis", data={
+                "aposta_slot_token": token, "valor": "1,00",
+            })
+        self.assertEqual(missing_csrf.status_code, 400)
+        draw.assert_not_called()
+        self.assertEqual(self._balance(user["user_id"]), 500)
+
+        page = self.client.get("/caca-niqueis")
+        csrf, token = self._csrf(page), self._campo(page, "aposta_slot_token")
+        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[0, 1, 2]) as draw:
+            self._slot("1,00", csrf=csrf, token=token)
+            duplicate = self._slot("1,00", csrf=csrf, token=token)
+        self.assertEqual(duplicate.status_code, 302)
+        self.assertEqual(draw.call_count, 3)
+        self.assertEqual(self._balance(user["user_id"]), 400)
+
+    def test_slot_usuarios_nao_autenticados_nao_acessam_dados(self):
+        self.assertEqual(self.client.get("/jogos").status_code, 302)
+        page = self.client.get("/")
+        self.assertEqual(self.client.post("/caca-niqueis", data={
+            "csrf_token": self._csrf(page),
+        }).status_code, 302)
+
+    def test_slot_tem_layout_responsivo_e_vista_reduzida(self):
+        source = Path("static/css/estilo.css").read_text(encoding="utf-8")
+        script = Path("static/js/caca_niqueis.js").read_text(encoding="utf-8")
+        self.assertIn("@media (max-width: 620px)", source)
+        self.assertIn(".slot-reels", source)
+        self.assertIn("prefers-reduced-motion", source)
+        self.assertIn("prefers-reduced-motion", script)
 
     def test_resultado_servidor_e_transmitido_sem_expor_campo_de_resultado_no_formulario(self):
         self._signup()

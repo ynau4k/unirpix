@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <symbol id="gato-0" viewBox="0 0 100 100">
+    <path fill="#29202f" d="M15 40 13 9l25 18Q50 21 63 28L86 9l1 34q6 9 6 20a34 30 0 0 1-68 0q0-13-10-23Z"/>
+    <path fill="#ab79bd" d="m22 23 13 8-11 13Zm56 0-13 8 12 13Z"/><path fill="#bce596" d="M33 51q8-8 16 0-8 11-16 0Zm20 0q8-8 16 0-8 11-16 0Z"/>
+    <ellipse fill="#38243d" cx="50" cy="64" rx="8" ry="5"/><path fill="none" stroke="#f3d8f3" stroke-width="2" stroke-linecap="round" d="M50 69q-5 7-10 2m10-2q5 7 10 2"/><path fill="#b889d2" d="M30 86q20-13 40 0v8H30z"/>
+  </symbol>
+  <symbol id="gato-1" viewBox="0 0 100 100">
+    <path fill="#e68c45" d="M14 42 12 8l27 19q12-5 23 0L86 8l1 34q7 9 7 21a34 30 0 0 1-68 0q0-11-12-21Z"/>
+    <path fill="#ffd5b0" d="m22 22 14 9-12 14Zm56 0-13 9 12 14Z"/><path fill="#fff1de" d="M31 60q19-17 38 0v15q-19 13-38 0Z"/><path fill="#4c8c53" d="M32 50q8-7 16 0-8 10-16 0Zm20 0q8-7 16 0-8 10-16 0Z"/>
+    <path fill="#b9632d" d="m47 27 3 9 3-9m-19-5 5 12m23-12-5 12"/><path fill="#e78b45" d="M29 87q21-14 42 0v8H29z"/><ellipse fill="#b96452" cx="50" cy="65" rx="7" ry="5"/><path fill="none" stroke="#633a33" stroke-width="2" d="M50 70q-5 7-10 2m10-2q5 7 10 2"/>
+  </symbol>
+  <symbol id="gato-2" viewBox="0 0 100 100">
+    <path fill="#f0d8a8" d="M14 41 14 9l25 18q12-5 23 0L86 9l1 33q7 10 7 21a34 30 0 0 1-68 0q0-11-12-22Z"/>
+    <path fill="#f5b9c1" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#87623d" d="M32 51q8-7 16 0-8 10-16 0Zm20 0q8-7 16 0-8 10-16 0Z"/><path fill="#fff4db" d="M33 63q17-8 34 0v12q-17 11-34 0Z"/>
+    <path fill="#f8c76d" d="M36 24q14-13 28 0-14-4-28 0Z"/><ellipse fill="#b88978" cx="50" cy="66" rx="7" ry="5"/><path fill="none" stroke="#785c4e" stroke-width="2" d="M50 71q-5 6-10 2m10-2q5 6 10 2"/><path fill="#f0d8a8" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-3" viewBox="0 0 100 100">
+    <path fill="#8494a8" d="M14 41 12 9l26 18q13-5 24 0L87 9l1 34q6 9 6 20a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#efb6c6" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#e7f4dc" d="M31 60q19-15 38 0v15q-19 11-38 0Z"/><path fill="#d9e7ee" d="M33 50q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/>
+    <path fill="none" stroke="#637284" stroke-width="4" stroke-linecap="round" d="m42 28 4 6m8-6-4 6M33 35l4 5m30-5-4 5"/><ellipse fill="#c8899c" cx="50" cy="66" rx="7" ry="5"/><path fill="none" stroke="#495666" stroke-width="2" d="M50 71q-5 6-10 2m10-2q5 6 10 2"/><path fill="#8494a8" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-4" viewBox="0 0 100 100">
+    <path fill="#fff8ef" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#f4b4c9" d="m22 22 13 9-11 14Zm56 0-13 9 12 14Z"/><path fill="#79c4bd" d="M32 51q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/><path fill="#fff" d="M32 63q18-8 36 0v13q-18 9-36 0Z"/>
+    <path fill="#d7c4e7" d="M25 30q13-16 24-4-11 3-15 13Zm50-2q-8-11-16-6 6 4 7 11Z"/><ellipse fill="#e39cac" cx="50" cy="67" rx="7" ry="5"/><path fill="none" stroke="#706477" stroke-width="2" d="M50 72q-5 6-10 2m10-2q5 6 10 2"/><path fill="#fff8ef" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-5" viewBox="0 0 100 100">
+    <path fill="#fff0d7" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#d6785e" d="M14 19 13 9l25 18-8 10q-10-8-16-18Zm69 1L86 9 62 27l8 10q8-10 13-17Z"/><path fill="#f5b7c7" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#628a65" d="M32 51q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/>
+    <path fill="#fff" d="M32 64q18-8 36 0v12q-18 9-36 0Z"/><ellipse fill="#c17b76" cx="50" cy="67" rx="7" ry="5"/><path fill="none" stroke="#79534f" stroke-width="2" d="M50 72q-5 6-10 2m10-2q5 6 10 2"/><path fill="#fff0d7" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-6" viewBox="0 0 100 100">
+    <path fill="#9e654a" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#e7b99f" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#f1dba8" d="M31 60q19-15 38 0v15q-19 11-38 0Z"/><path fill="#b8dfb0" d="M32 50q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/>
+    <path fill="none" stroke="#74482f" stroke-width="4" stroke-linecap="round" d="m40 26 5 9m10-9-5 9M29 34l7 5m35-5-7 5"/><ellipse fill="#b77876" cx="50" cy="66" rx="7" ry="5"/><path fill="none" stroke="#563a35" stroke-width="2" d="M50 71q-5 6-10 2m10-2q5 6 10 2"/><path fill="#9e654a" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-7" viewBox="0 0 100 100">
+    <path fill="#bc9ad7" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#f3c2d9" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#fff1c5" d="M31 60q19-15 38 0v15q-19 11-38 0Z"/><path fill="#705d9d" d="M32 50q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/>
+    <path fill="#f1bc55" d="M50 14q-12 0-13 10 9-3 13 4 4-7 13-4-1-10-13-10Z"/><ellipse fill="#d987a3" cx="50" cy="66" rx="7" ry="5"/><path fill="none" stroke="#695778" stroke-width="2" d="M50 71q-5 6-10 2m10-2q5 6 10 2"/><path fill="#bc9ad7" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-8" viewBox="0 0 100 100">
+    <path fill="#323844" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#d58bb4" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#d9f58b" d="M32 50q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/><path fill="#f4f0ee" d="M32 62q18-8 36 0v14q-18 10-36 0Z"/>
+    <path fill="#20232b" d="M33 30q6-5 12 0m10 0q6-5 12 0"/><ellipse fill="#db90a2" cx="50" cy="67" rx="7" ry="5"/><path fill="none" stroke="#44414b" stroke-width="2" d="M50 72q-5 6-10 2m10-2q5 6 10 2"/><path fill="#323844" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-9" viewBox="0 0 100 100">
+    <path fill="#d9a14d" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#ffe0b2" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#567c79" d="M32 51q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/><path fill="#fff2d8" d="M32 63q18-8 36 0v13q-18 9-36 0Z"/>
+    <path fill="#bd7937" d="m32 24 5 9m8-11 2 10m8-10-2 10m10-8-5 10"/><ellipse fill="#c3786b" cx="50" cy="67" rx="7" ry="5"/><path fill="none" stroke="#744c36" stroke-width="2" d="M50 72q-5 6-10 2m10-2q5 6 10 2"/><path fill="#d9a14d" d="M29 87q21-13 42 0v8H29z"/>
+  </symbol>
+  <symbol id="gato-10" viewBox="0 0 100 100">
+    <path fill="#c6d4d7" d="M14 41 12 8l27 19q12-5 23 0L87 8l1 34q6 9 6 21a34 30 0 0 1-68 0q0-12-12-22Z"/>
+    <path fill="#edb6c8" d="m22 23 13 8-11 14Zm56 0-13 8 12 14Z"/><path fill="#82a786" d="M32 50q8-8 16 0-8 10-16 0Zm20 0q8-8 16 0-8 10-16 0Z"/><path fill="#fff" d="M32 62q18-8 36 0v14q-18 10-36 0Z"/>
+    <path fill="#8d6d9c" d="M16 30q12-17 24-5-8 1-12 10Zm68 2Q76 16 63 25q9 1 12 11Z"/><path fill="#f0c460" d="M32 82q18-10 36 0v7H32z"/><ellipse fill="#d4819a" cx="50" cy="66" rx="7" ry="5"/><path fill="none" stroke="#61716d" stroke-width="2" d="M50 71q-5 6-10 2m10-2q5 6 10 2"/><path fill="#c6d4d7" d="M29 89q21-11 42 0v6H29z"/>
+  </symbol>
+</svg>

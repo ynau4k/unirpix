@@ -65,6 +65,8 @@ class TestPersistenciaSQLite(unittest.TestCase):
                 ("table", "credential_audit_events"),
             }.issubset(objects)
         )
+        view_columns = {row[1] for row in self._sql("PRAGMA table_info(bets)")}
+        self.assertTrue({"game_type", "slot_symbol_1", "slot_symbol_2", "slot_symbol_3"}.issubset(view_columns))
 
     def test_inicializacao_recusa_esquema_incompativel_sem_altera_lo(self):
         incompatible = self.root / "incompativel.sqlite3"
@@ -197,7 +199,7 @@ class TestPersistenciaSQLite(unittest.TestCase):
         metadata = self._sql(
             "SELECT schema_version, schema_sha256 FROM schema_metadata WHERE singleton=1"
         )[0]
-        self.assertEqual(metadata[0], 6)
+        self.assertEqual(metadata[0], 7)
         self.assertEqual(
             metadata[1],
             hashlib.sha256(persistencia.ARQUIVO_ESQUEMA.read_bytes()).hexdigest(),
@@ -857,6 +859,123 @@ class TestPersistenciaSQLite(unittest.TestCase):
         self.assertEqual(result.outcome, "loss")
         self.assertEqual(result.delta_cents, -700)
         self.assertEqual(result.balance_cents, 300)
+
+    def test_caca_niqueis_vitoria_credita_120x_e_preserva_simbolos(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "2,00", "slot-seed-deposit-0001")
+        draws = []
+
+        def controlled_draw():
+            draws.append(1)
+            return (6, 6, 6)
+
+        result = persistencia.registrar_aposta_caca_niqueis(
+            self.database, self.user_a, "0,01", controlled_draw, "slot-win-token-00000001"
+        )
+        self.assertEqual(draws, [1])
+        self.assertEqual(result.outcome, "win")
+        self.assertEqual(result.slot_symbols, (6, 6, 6))
+        self.assertEqual(result.delta_cents, 120)
+        self.assertEqual(result.balance_cents, 320)
+        rows = self._sql(
+            "SELECT operation_type, wager_cents, slot_symbol_1, slot_symbol_2, "
+            "slot_symbol_3, delta_cents FROM financial_transactions WHERE operation_type LIKE 'slot_%'"
+        )
+        self.assertEqual(tuple(rows[0]), ("slot_win", 1, 6, 6, 6, 120))
+
+    def test_caca_niqueis_derrota_debita_somente_a_aposta(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "10,00", "slot-seed-deposit-0002")
+        result = persistencia.registrar_aposta_caca_niqueis(
+            self.database, self.user_a, "7,00", lambda: (2, 3, 2), "slot-loss-token-00000001"
+        )
+        self.assertEqual(result.outcome, "loss")
+        self.assertEqual(result.delta_cents, -700)
+        self.assertEqual(result.balance_cents, 300)
+        history = persistencia.consultar_historico(self.database, self.user_a)
+        slot = next(row for row in history if row.get("operation_type") == "slot_loss")
+        self.assertEqual((slot["slot_symbol_1"], slot["slot_symbol_2"], slot["slot_symbol_3"]), (2, 3, 2))
+
+    def test_caca_niqueis_valida_antes_de_sortear_e_rejeita_valores_invalidos(self):
+        calls = []
+        draw = lambda: calls.append(True) or (1, 1, 1)
+        with self.assertRaises(persistencia.SaldoInsuficiente):
+            persistencia.registrar_aposta_caca_niqueis(
+                self.database, self.user_a, "0,01", draw, "slot-no-balance-token-01"
+            )
+        with self.assertRaises(persistencia.ErroValidacao):
+            persistencia.registrar_aposta_caca_niqueis(
+                self.database, self.user_a, "0,001", draw, "slot-subcent-token-0001"
+            )
+        self.assertEqual(calls, [])
+
+        persistencia.registrar_deposito(
+            self.database, self.user_a, "999999999,99", "slot-near-limit-deposit-01"
+        )
+        with self.assertRaises(persistencia.LimiteFinanceiroExcedido):
+            persistencia.registrar_aposta_caca_niqueis(
+                self.database, self.user_a, "0,01", draw, "slot-limit-token-0000001"
+            )
+        self.assertEqual(calls, [])
+
+    def test_caca_niqueis_recusa_sorteio_malformado_sem_gravar_operacao(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "1,00", "slot-seed-deposit-0003")
+        for invalid in ((1, 2), (1, 2, 11), (1, 2, 3.0), "1,1,1"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(persistencia.ErroValidacao):
+                    persistencia.registrar_aposta_caca_niqueis(
+                        self.database, self.user_a, "0,01", lambda value=invalid: value,
+                        f"slot-invalid-draw-{len(str(invalid)):02d}"
+                    )
+        self.assertEqual(self._sql("SELECT COUNT(*) FROM financial_transactions WHERE operation_type LIKE 'slot_%'")[0][0], 0)
+        self.assertEqual(self._sql("SELECT COUNT(*) FROM idempotency_keys WHERE operation_type='slot'")[0][0], 0)
+
+    def test_sql_direto_recusa_simbolos_fracionarios_ou_trinca_incorreta(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "5,00", "slot-seed-deposit-0005")
+        connection = persistencia.abrir_conexao(self.database)
+        try:
+            for key, symbols in (
+                ("slot-sql-fraction-token-0001", (1.5, 1, 1)),
+                ("slot-sql-mismatch-token-001", (1, 1, 2)),
+            ):
+                key_hash = persistencia._hash_chave_idempotencia(self.user_a, "slot", key)
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(
+                    "INSERT INTO idempotency_keys(key_hash,user_id,operation_type,state,created_at) "
+                    "VALUES (?,?,'slot','processing','2026-02-01T00:00:00Z')",
+                    (key_hash, self.user_a),
+                )
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(
+                        "INSERT INTO financial_transactions "
+                        "(user_id,operation_type,delta_cents,occurred_at,wager_cents,outcome,"
+                        "slot_symbol_1,slot_symbol_2,slot_symbol_3) "
+                        "VALUES (?,'slot_win',120,'2026-02-01T00:00:00Z',1,'win',?,?,?)",
+                        (self.user_a, *symbols),
+                    )
+                connection.rollback()
+        finally:
+            connection.close()
+
+    def test_caca_niqueis_idempotente_em_concorrencia(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "10,00", "slot-seed-deposit-0004")
+        lock = threading.Lock()
+        draws = []
+
+        def draw():
+            with lock:
+                draws.append(1)
+            return (4, 4, 4)
+
+        def spin():
+            return persistencia.registrar_aposta_caca_niqueis(
+                self.database, self.user_a, "0,01", draw, "slot-shared-token-000001"
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            results = list(pool.map(lambda _: spin(), range(6)))
+        self.assertEqual(len(draws), 1)
+        self.assertEqual(len({item.transaction_id for item in results}), 1)
+        self.assertEqual(sum(item.replayed for item in results), 5)
+        self.assertEqual(self._sql("SELECT COUNT(*) FROM financial_transactions WHERE operation_type LIKE 'slot_%'")[0][0], 1)
 
     def test_saldo_insuficiente_e_numero_invalido_nao_chamam_sorteador(self):
         calls = []

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b102b">
+  <title>Gatinhos giratórios | UnirPix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+</head>
+<body>
+  <main class="menu-page slot-page">
+    <div class="menu-shell slot-shell">
+      <header class="menu-header">
+        <a class="menu-brand" href="{{ url_for('inicio') }}" aria-label="Voltar ao início do UnirPix">
+          <span class="menu-brand-mark" aria-hidden="true">♡</span>
+          <span>Unir<span>Pix</span></span>
+        </a>
+        <a class="logout-button" href="{{ url_for('jogos') }}">Escolher outro jogo</a>
+      </header>
+
+      <section class="slot-card" aria-labelledby="slot-title">
+        <div class="roulette-heading">
+          <span class="roulette-icon" aria-hidden="true">✦</span>
+          <div>
+            <p class="menu-kicker">Três rolos, onze gatinhos</p>
+            <h1 id="slot-title">Gatinhos giratórios</h1>
+          </div>
+        </div>
+
+        {% if saldo is not none %}
+          <p class="roulette-balance">Saldo disponível <strong>R$ {{ "{:,.2f}".format(saldo).replace(",", "_").replace(".", ",").replace("_", ".") }}</strong></p>
+        {% else %}
+          <p class="roulette-balance">Não foi possível consultar seu saldo agora.</p>
+        {% endif %}
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+          {% for categoria, mensagem in mensagens %}
+            <div class="notice roulette-notice notice-{{ categoria }}" role="{{ 'status' if categoria in ['success', 'game-result'] else 'alert' }}"{% if spin_result %} data-slot-result hidden{% endif %}>{{ mensagem }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <div class="slot-stage" id="slot-stage" aria-label="Três rolos de símbolos de gatos"
+          data-cat-sprite="{{ url_for('static', filename='imagens/gatos/gatos-simbolos.svg') }}"
+          {% if spin_result %}
+          data-symbol-1="{{ spin_result.symbols[0] }}"
+          data-symbol-2="{{ spin_result.symbols[1] }}"
+          data-symbol-3="{{ spin_result.symbols[2] }}"
+          data-result-outcome="{{ spin_result.outcome }}"
+          {% endif %}>
+          <div class="slot-reels" id="slot-reels">
+            {% for reel in range(3) %}
+            <div class="slot-reel" data-reel="{{ reel }}" role="img" aria-label="Rolo {{ reel + 1 }}">
+              <div class="slot-reel-strip">
+                <span class="slot-cat-cell"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="{{ url_for('static', filename='imagens/gatos/gatos-simbolos.svg') }}#gato-{{ reel * 3 }}"></use></svg></span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <span class="slot-stage-glow" aria-hidden="true"></span>
+        </div>
+
+        <form id="form-slot" class="login-form roulette-form" method="post" action="{{ url_for('caca_niqueis') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="aposta_slot_token" value="{{ aposta_token }}">
+          <div class="field-group">
+            <label for="valor-slot">Valor fictício da aposta</label>
+            <input id="valor-slot" name="valor" type="text" inputmode="decimal" maxlength="20" placeholder="0,00" autocomplete="off" required>
+            <span class="field-hint">A aposta precisa caber no saldo caso os gatos não combinem.</span>
+          </div>
+          <button class="submit-button roulette-submit" type="submit">Girar os gatinhos <span aria-hidden="true">♡</span></button>
+        </form>
+        <p class="slot-prize-note">Três gatos iguais vencem (chance de 1 em 121). A vitória credita 120× a aposta, sem débito prévio; a derrota desconta o valor apostado.</p>
+        <noscript><p class="roulette-no-script">Ative o JavaScript para ver a animação. A aposta e o resultado continuam sendo processados pelo servidor.</p></noscript>
+      </section>
+      <footer class="menu-footer">Feito com carinho e muitos ronrons <span aria-hidden="true">♡</span></footer>
+    </div>
+  </main>
+  {% if spin_result %}<noscript><style>[data-slot-result][hidden]{display:block}</style></noscript>{% endif %}
+  <script src="{{ url_for('static', filename='js/caca_niqueis.js', v='20261121') }}" defer></script>
+</body>
+</html>

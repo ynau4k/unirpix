@@ -22,7 +22,7 @@ from typing import Callable, Iterator
 
 VALOR_MAXIMO_CENTAVOS = 100_000_000_000  # R$ 1.000.000.000,00
 ARQUIVO_ESQUEMA = Path(__file__).with_name("esquema_financeiro.sql")
-VERSAO_ESQUEMA = 6
+VERSAO_ESQUEMA = 7
 
 
 class ErroPersistencia(Exception):
@@ -77,6 +77,7 @@ class ResultadoOperacao:
     chosen_number: int | None = None
     drawn_number: int | None = None
     replayed: bool = False
+    slot_symbols: tuple[int, int, int] | None = None
 
 
 def _cpf_normalizado(cpf: str) -> str:
@@ -422,15 +423,18 @@ def _registrar_transacao(
     chosen_number: int | None = None,
     drawn_number: int | None = None,
     outcome: str | None = None,
+    slot_symbols: tuple[int, int, int] | None = None,
 ) -> int:
     cursor = conexao.execute(
         """INSERT INTO financial_transactions
            (user_id, operation_type, delta_cents, occurred_at, source_file, source_row,
-            amount_cents, wager_cents, chosen_number, drawn_number, outcome)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            amount_cents, wager_cents, chosen_number, drawn_number, outcome,
+            slot_symbol_1, slot_symbol_2, slot_symbol_3)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             user_id, operation_type, delta_cents, occurred_at, source_file, source_row,
             amount_cents, wager_cents, chosen_number, drawn_number, outcome,
+            *(slot_symbols if slot_symbols is not None else (None, None, None)),
         ),
     )
     return int(cursor.lastrowid)
@@ -665,6 +669,8 @@ def _resultado_existente(
         raise ConflitoIdempotencia("A chave de idempotência tem estado incompleto.")
     dados = json.loads(linha["result_json"])
     dados["replayed"] = True
+    if isinstance(dados.get("slot_symbols"), list):
+        dados["slot_symbols"] = tuple(dados["slot_symbols"])
     return ResultadoOperacao(**dados)
 
 
@@ -674,7 +680,7 @@ def validar_chave_idempotencia(
     operation_type: str,
     key: str,
 ) -> ResultadoOperacao | None:
-    if operation_type not in {"deposit", "bet"}:
+    if operation_type not in {"deposit", "bet", "slot"}:
         raise ErroValidacao("Tipo de operação inválido.")
     key_hash = _hash_chave_idempotencia(user_id, operation_type, key)
     conexao = abrir_conexao(caminho)
@@ -830,6 +836,74 @@ def registrar_aposta(
     return resultado
 
 
+def registrar_aposta_caca_niqueis(
+    caminho: str | os.PathLike[str],
+    user_id: int,
+    valor: object,
+    sortear_simbolos: Callable[[], object],
+    chave_idempotencia: str,
+    *,
+    ocorrido_em: str | None = None,
+) -> ResultadoOperacao:
+    """Registra três rolos de gatos em uma transação financeira.
+
+    Cada símbolo deve ser um inteiro de 0 a 10. O sorteador é injetado pelo
+    chamador e chamado somente após validar saldo para a derrota e capacidade
+    para o prêmio de 120 vezes a aposta. A vitória credita o prêmio sem débito
+    prévio; a derrota debita apenas a aposta.
+    """
+    aposta_centavos = converter_para_centavos(valor)
+    if not callable(sortear_simbolos):
+        raise ErroValidacao("É necessário fornecer o sorteador de símbolos.")
+    key_hash = _hash_chave_idempotencia(user_id, "slot", chave_idempotencia)
+    instante = ocorrido_em or _agora_utc()
+
+    with transacao_escrita(caminho) as conexao:
+        repetida = _resultado_existente(conexao, key_hash)
+        if repetida is not None:
+            return repetida
+        conta = conexao.execute(
+            "SELECT balance_cents FROM accounts WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        if conta is None:
+            raise ContaNaoEncontrada("Conta não encontrada.")
+        saldo_atual = int(conta["balance_cents"])
+        if aposta_centavos > saldo_atual:
+            raise SaldoInsuficiente("Saldo insuficiente para cobrir uma eventual derrota.")
+        premio_maximo = aposta_centavos * 120
+        if premio_maximo > VALOR_MAXIMO_CENTAVOS or saldo_atual + premio_maximo > VALOR_MAXIMO_CENTAVOS:
+            raise LimiteFinanceiroExcedido("O saldo não comporta o prêmio máximo permitido.")
+
+        valores = sortear_simbolos()
+        if not isinstance(valores, (tuple, list)) or len(valores) != 3:
+            raise ErroValidacao("O sorteador deve retornar exatamente três símbolos.")
+        simbolos = tuple(_numero_jogo(simbolo, "Símbolo sorteado") for simbolo in valores)
+        venceu = simbolos[0] == simbolos[1] == simbolos[2]
+        efeito = premio_maximo if venceu else -aposta_centavos
+        operation_type = "slot_win" if venceu else "slot_loss"
+        outcome = "win" if venceu else "loss"
+
+        _iniciar_idempotencia(conexao, key_hash, user_id, "slot", instante)
+        transaction_id = _registrar_transacao(
+            conexao, user_id, operation_type, efeito, instante,
+            wager_cents=aposta_centavos,
+            outcome=outcome,
+            slot_symbols=simbolos,
+        )
+        resultado = ResultadoOperacao(
+            transaction_id=transaction_id,
+            user_id=user_id,
+            operation_type=operation_type,
+            delta_cents=efeito,
+            balance_cents=saldo_atual + efeito,
+            amount_cents=aposta_centavos,
+            outcome=outcome,
+            slot_symbols=simbolos,
+        )
+        _finalizar_idempotencia(conexao, key_hash, resultado)
+    return resultado
+
+
 def consultar_historico(
     caminho: str | os.PathLike[str], user_id: int, limite: int = 100
 ) -> list[dict[str, object]]:
@@ -842,7 +916,8 @@ def consultar_historico(
             for row in conexao.execute(
                 """SELECT ft.transaction_id, ft.operation_type, ft.delta_cents,
                           ft.occurred_at, d.amount_cents,
-                          b.wager_cents, b.chosen_number, b.drawn_number, b.outcome
+                          b.wager_cents, b.chosen_number, b.drawn_number, b.outcome,
+                          b.game_type, b.slot_symbol_1, b.slot_symbol_2, b.slot_symbol_3
                    FROM financial_transactions AS ft
                    LEFT JOIN deposits AS d USING(transaction_id)
                    LEFT JOIN bets AS b USING(transaction_id)

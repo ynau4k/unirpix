@@ -79,6 +79,13 @@ def _formatar_historico(registros: list[dict]) -> list[dict[str, str]]:
                 f"número sorteado: {registro.get('drawn_number')} · "
                 f"aposta: {_dinheiro(registro.get('wager_cents') or 0)}"
             )
+        elif tipo in {"slot_win", "slot_loss"}:
+            titulo = "Caça-níqueis vencedor" if tipo == "slot_win" else "Caça-níqueis perdido"
+            simbolos = [registro.get(f"slot_symbol_{indice}") for indice in range(1, 4)]
+            detalhe = (
+                f"Gatos sorteados: {' · '.join(str(item) for item in simbolos)} · "
+                f"aposta: {_dinheiro(registro.get('wager_cents') or 0)}"
+            )
         else:
             continue
         formatados.append({
@@ -253,6 +260,11 @@ def create_app(config_override: dict | None = None) -> Flask:
             historico_ativo=True,
         )
 
+    @app.route("/jogos")
+    @login_required
+    def jogos():
+        return render_template("jogos.html", nome_usuario=g.usuario["nome"])
+
     @app.route("/deposito", methods=["GET", "POST"])
     @login_required
     def deposito():
@@ -348,6 +360,68 @@ def create_app(config_override: dict | None = None) -> Flask:
         session["bet_token"] = token
         return render_template(
             "roleta.html", saldo=saldo, aposta_token=token, spin_result=spin_result
+        )
+
+    @app.route("/caca-niqueis", methods=["GET", "POST"])
+    @login_required
+    def caca_niqueis():
+        db = current_app.config["SQLITE_DATABASE"]
+        user_id = int(g.usuario["user_id"])
+        if request.method == "POST":
+            form_token = request.form.get("aposta_slot_token", "")
+            session_token = session.pop("slot_token", None)
+            if not isinstance(form_token, str) or not secrets.compare_digest(
+                form_token, session_token if isinstance(session_token, str) else ""
+            ):
+                flash("Este formulário expirou ou já foi enviado. Tente novamente.", "error")
+                return redirect(url_for("caca_niqueis"))
+            try:
+                resultado = persistencia.registrar_aposta_caca_niqueis(
+                    db,
+                    user_id,
+                    request.form.get("valor", ""),
+                    lambda: tuple(secrets.randbelow(11) for _ in range(3)),
+                    form_token,
+                )
+                if resultado.outcome == "win":
+                    texto = (
+                        "Trinca de gatinhos! Você venceu!\n"
+                        f"Gatos sorteados: {' · '.join(str(item) for item in resultado.slot_symbols or ())}\n"
+                        f"Valor apostado: {_dinheiro(resultado.amount_cents)}\n"
+                        f"Lucro líquido: +{_dinheiro(resultado.delta_cents)}\n"
+                        f"Saldo atualizado: {_dinheiro(resultado.balance_cents)}"
+                    )
+                    flash(texto, "success")
+                else:
+                    texto = (
+                        "Desta vez, os gatinhos não combinaram.\n"
+                        f"Gatos sorteados: {' · '.join(str(item) for item in resultado.slot_symbols or ())}\n"
+                        f"Valor apostado: {_dinheiro(resultado.amount_cents)}\n"
+                        f"Perda: {_dinheiro(resultado.delta_cents)}\n"
+                        f"Saldo atualizado: {_dinheiro(resultado.balance_cents)}"
+                    )
+                    flash(texto, "game-result")
+                session["slot_result"] = {
+                    "symbols": list(resultado.slot_symbols or ()),
+                    "outcome": str(resultado.outcome),
+                }
+            except persistencia.ErroValidacao:
+                flash("Informe um valor positivo com até duas casas decimais.", "error")
+            except persistencia.SaldoInsuficiente:
+                flash("Saldo insuficiente para cobrir uma eventual derrota.", "error")
+            except persistencia.LimiteFinanceiroExcedido:
+                flash("O saldo não comporta o prêmio máximo. Nenhum sorteio foi realizado.", "error")
+            except (OSError, sqlite3.Error, persistencia.ErroPersistencia):
+                flash("Não foi possível concluir a aposta. O saldo não foi alterado.", "error")
+            return redirect(url_for("caca_niqueis"))
+
+        conta = persistencia.consultar_conta(db, user_id)
+        saldo = Decimal(conta["balance_cents"]) / 100 if conta else None
+        spin_result = session.pop("slot_result", None)
+        token = persistencia.gerar_chave_idempotencia()
+        session["slot_token"] = token
+        return render_template(
+            "caca_niqueis.html", saldo=saldo, aposta_token=token, spin_result=spin_result
         )
 
     @app.route("/historico")
