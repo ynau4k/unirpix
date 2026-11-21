@@ -133,7 +133,8 @@ CREATE TABLE financial_transactions (
         REFERENCES users(user_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
     operation_type TEXT NOT NULL
         CHECK (operation_type IN (
-            'opening_balance', 'deposit', 'bet_win', 'bet_loss', 'slot_win', 'slot_loss'
+            'opening_balance', 'deposit', 'bet_win', 'bet_loss',
+            'slot_win', 'slot_pair', 'slot_loss'
         )),
     delta_cents INTEGER NOT NULL CHECK (
         typeof(delta_cents) = 'integer'
@@ -152,6 +153,8 @@ CREATE TABLE financial_transactions (
     slot_symbol_1 INTEGER,
     slot_symbol_2 INTEGER,
     slot_symbol_3 INTEGER,
+    slot_multiplier INTEGER,
+    slot_payout_symbol INTEGER,
     CHECK (
         (source_file IS NULL AND source_row IS NULL)
         OR (source_file IS NOT NULL AND source_row IS NOT NULL
@@ -164,6 +167,7 @@ CREATE TABLE financial_transactions (
     CHECK (slot_symbol_1 IS NULL OR typeof(slot_symbol_1) = 'integer'),
     CHECK (slot_symbol_2 IS NULL OR typeof(slot_symbol_2) = 'integer'),
     CHECK (slot_symbol_3 IS NULL OR typeof(slot_symbol_3) = 'integer'),
+    CHECK (slot_payout_symbol IS NULL OR typeof(slot_payout_symbol) = 'integer'),
     CHECK (
         (operation_type = 'opening_balance'
             AND delta_cents >= 0
@@ -213,14 +217,45 @@ CREATE TABLE financial_transactions (
             AND typeof(wager_cents) = 'integer'
             AND wager_cents BETWEEN 1 AND 100000000000
             AND chosen_number IS NULL AND drawn_number IS NULL
-            AND outcome = 'win' AND delta_cents = wager_cents * 120
+            AND outcome = 'triple' AND delta_cents = wager_cents * slot_multiplier
             AND slot_symbol_1 BETWEEN 0 AND 10
             AND slot_symbol_2 BETWEEN 0 AND 10
             AND slot_symbol_3 BETWEEN 0 AND 10
             AND typeof(slot_symbol_1) = 'integer'
             AND typeof(slot_symbol_2) = 'integer'
             AND typeof(slot_symbol_3) = 'integer'
-            AND slot_symbol_1 = slot_symbol_2 AND slot_symbol_2 = slot_symbol_3)
+            AND slot_symbol_1 = slot_symbol_2 AND slot_symbol_2 = slot_symbol_3
+            AND slot_payout_symbol = slot_symbol_1
+            AND typeof(slot_multiplier) = 'integer'
+            AND slot_multiplier = CASE slot_symbol_1
+                WHEN 0 THEN 2 WHEN 1 THEN 3 WHEN 2 THEN 5 WHEN 3 THEN 8
+                WHEN 4 THEN 10 WHEN 5 THEN 15 WHEN 6 THEN 20 WHEN 7 THEN 30
+                WHEN 8 THEN 40 WHEN 9 THEN 60 WHEN 10 THEN 100 END)
+        OR
+        (operation_type = 'slot_pair'
+            AND amount_cents IS NULL AND wager_cents IS NOT NULL
+            AND typeof(wager_cents) = 'integer'
+            AND wager_cents BETWEEN 1 AND 100000000000
+            AND chosen_number IS NULL AND drawn_number IS NULL
+            AND outcome = 'pair'
+            AND delta_cents = (2 * wager_cents * slot_multiplier + 3) / 6
+            AND slot_symbol_1 BETWEEN 0 AND 10 AND slot_symbol_2 BETWEEN 0 AND 10
+            AND slot_symbol_3 BETWEEN 0 AND 10
+            AND typeof(slot_symbol_1) = 'integer'
+            AND typeof(slot_symbol_2) = 'integer'
+            AND typeof(slot_symbol_3) = 'integer'
+            AND ((slot_symbol_1 = slot_symbol_2) + (slot_symbol_1 = slot_symbol_3)
+                 + (slot_symbol_2 = slot_symbol_3)) = 1
+            AND (slot_payout_symbol = slot_symbol_1 OR slot_payout_symbol = slot_symbol_2
+                 OR slot_payout_symbol = slot_symbol_3)
+            AND ((slot_payout_symbol = slot_symbol_1 AND slot_symbol_1 = slot_symbol_2)
+                 OR (slot_payout_symbol = slot_symbol_1 AND slot_symbol_1 = slot_symbol_3)
+                 OR (slot_payout_symbol = slot_symbol_2 AND slot_symbol_2 = slot_symbol_3))
+            AND typeof(slot_multiplier) = 'integer'
+            AND slot_multiplier = CASE slot_payout_symbol
+                WHEN 0 THEN 2 WHEN 1 THEN 3 WHEN 2 THEN 5 WHEN 3 THEN 8
+                WHEN 4 THEN 10 WHEN 5 THEN 15 WHEN 6 THEN 20 WHEN 7 THEN 30
+                WHEN 8 THEN 40 WHEN 9 THEN 60 WHEN 10 THEN 100 END)
         OR
         (operation_type = 'slot_loss'
             AND amount_cents IS NULL AND wager_cents IS NOT NULL
@@ -228,13 +263,22 @@ CREATE TABLE financial_transactions (
             AND wager_cents BETWEEN 1 AND 100000000000
             AND chosen_number IS NULL AND drawn_number IS NULL
             AND outcome = 'loss' AND delta_cents = -wager_cents
-            AND slot_symbol_1 BETWEEN 0 AND 10
-            AND slot_symbol_2 BETWEEN 0 AND 10
+            AND slot_symbol_1 BETWEEN 0 AND 10 AND slot_symbol_2 BETWEEN 0 AND 10
             AND slot_symbol_3 BETWEEN 0 AND 10
             AND typeof(slot_symbol_1) = 'integer'
             AND typeof(slot_symbol_2) = 'integer'
             AND typeof(slot_symbol_3) = 'integer'
-            AND (slot_symbol_1 <> slot_symbol_2 OR slot_symbol_2 <> slot_symbol_3))
+            AND slot_symbol_1 <> slot_symbol_2 AND slot_symbol_1 <> slot_symbol_3
+            AND slot_symbol_2 <> slot_symbol_3
+            AND slot_multiplier IS NULL AND slot_payout_symbol IS NULL)
+    ),
+    CHECK (
+        (operation_type IN ('slot_win', 'slot_pair') AND slot_multiplier IS NOT NULL
+            AND slot_payout_symbol BETWEEN 0 AND 10)
+        OR (operation_type IN ('slot_loss') AND slot_multiplier IS NULL
+            AND slot_payout_symbol IS NULL)
+        OR (operation_type NOT IN ('slot_win', 'slot_pair', 'slot_loss')
+            AND slot_multiplier IS NULL AND slot_payout_symbol IS NULL)
     )
 );
 
@@ -252,12 +296,13 @@ CREATE VIEW deposits AS
 
 CREATE VIEW bets AS
     SELECT transaction_id, wager_cents, chosen_number, drawn_number, outcome,
-           CASE WHEN operation_type IN ('slot_win', 'slot_loss') THEN 'slot' ELSE 'roulette' END
+           CASE WHEN operation_type IN ('slot_win', 'slot_pair', 'slot_loss') THEN 'slot' ELSE 'roulette' END
                AS game_type,
-           slot_symbol_1, slot_symbol_2, slot_symbol_3,
+           slot_symbol_1, slot_symbol_2, slot_symbol_3, slot_multiplier,
+           slot_payout_symbol, outcome AS slot_outcome,
            delta_cents AS balance_delta_cents, occurred_at
     FROM financial_transactions
-    WHERE operation_type IN ('bet_win', 'bet_loss', 'slot_win', 'slot_loss');
+    WHERE operation_type IN ('bet_win', 'bet_loss', 'slot_win', 'slot_pair', 'slot_loss');
 
 CREATE TABLE legacy_history (
     legacy_id INTEGER PRIMARY KEY,
@@ -345,18 +390,18 @@ BEGIN
              FROM accounts WHERE user_id = NEW.user_id) > 100000000000
         )
         THEN RAISE(ABORT, 'bet lacks loss coverage or maximum prize capacity')
-        WHEN NEW.operation_type IN ('slot_win', 'slot_loss') AND NOT EXISTS (
+        WHEN NEW.operation_type IN ('slot_win', 'slot_pair', 'slot_loss') AND NOT EXISTS (
             SELECT 1 FROM idempotency_keys
             WHERE user_id = NEW.user_id AND operation_type = 'slot' AND state = 'processing'
         )
         THEN RAISE(ABORT, 'slot requires a processing idempotency key')
-        WHEN NEW.operation_type IN ('slot_win', 'slot_loss') AND (
+        WHEN NEW.operation_type IN ('slot_win', 'slot_pair', 'slot_loss') AND (
             (SELECT balance_cents FROM accounts WHERE user_id = NEW.user_id) < NEW.wager_cents
             OR
-            (SELECT balance_cents + NEW.wager_cents * 120
+            (SELECT balance_cents + NEW.wager_cents * 100
              FROM accounts WHERE user_id = NEW.user_id) > 100000000000
         )
-        THEN RAISE(ABORT, 'slot lacks loss coverage or maximum prize capacity')
+        THEN RAISE(ABORT, 'slot lacks wager coverage or maximum prize capacity')
     END;
 END;
 
@@ -499,7 +544,7 @@ WHEN OLD.state <> 'processing'
             OR
             (NEW.operation_type = 'bet' AND ft.operation_type IN ('bet_win', 'bet_loss'))
             OR
-            (NEW.operation_type = 'slot' AND ft.operation_type IN ('slot_win', 'slot_loss'))
+            (NEW.operation_type = 'slot' AND ft.operation_type IN ('slot_win', 'slot_pair', 'slot_loss'))
         )
         AND json_valid(NEW.result_json)
         AND json_extract(NEW.result_json, '$.transaction_id') = ft.transaction_id
@@ -517,6 +562,8 @@ WHEN OLD.state <> 'processing'
         AND json_extract(NEW.result_json, '$.slot_symbols[0]') IS ft.slot_symbol_1
         AND json_extract(NEW.result_json, '$.slot_symbols[1]') IS ft.slot_symbol_2
         AND json_extract(NEW.result_json, '$.slot_symbols[2]') IS ft.slot_symbol_3
+        AND json_extract(NEW.result_json, '$.slot_multiplier') IS ft.slot_multiplier
+        AND json_extract(NEW.result_json, '$.slot_payout_symbol') IS ft.slot_payout_symbol
   )
 BEGIN
     SELECT RAISE(ABORT, 'idempotency completion does not match its financial transaction');

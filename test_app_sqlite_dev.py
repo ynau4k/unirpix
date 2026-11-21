@@ -1,4 +1,6 @@
 import re
+import hashlib
+import json
 import secrets
 import sqlite3
 import tempfile
@@ -92,7 +94,7 @@ class TestAppSQLiteDev(unittest.TestCase):
             data["cpf"] = cpf_override
         return client.post("/roleta", data=data)
 
-    def _slot(self, amount, client=None, cpf_override=None, csrf=None, token=None):
+    def _slot(self, amount, client=None, cpf_override=None, csrf=None, token=None, accept_json=False):
         client = client or self.client
         if csrf is None or token is None:
             page = client.get("/caca-niqueis")
@@ -101,7 +103,8 @@ class TestAppSQLiteDev(unittest.TestCase):
         data = {"csrf_token": csrf, "aposta_slot_token": token, "valor": amount}
         if cpf_override:
             data["cpf"] = cpf_override
-        return client.post("/caca-niqueis", data=data)
+        headers = {"Accept": "application/json"} if accept_json else None
+        return client.post("/caca-niqueis", data=data, headers=headers)
 
     def _balance(self, user_id):
         return persistencia.consultar_conta(self.database, user_id)["balance_cents"]
@@ -232,27 +235,46 @@ class TestAppSQLiteDev(unittest.TestCase):
         self.assertIn('href="/caca-niqueis"', games)
         page = self.client.get("/caca-niqueis")
         self.assertEqual(page.status_code, 200)
-        self.assertIn("gatos-simbolos.svg", page.get_data(as_text=True))
+        page_html = page.get_data(as_text=True)
+        self.assertIn("simbolo-00-transparente.png?v=20261121-1", page_html)
+        image_match = re.search(r"data-gato-imagens='([^']+)'", page_html)
+        name_match = re.search(r"data-gatinho-nomes='([^']+)'", page_html)
+        self.assertIsNotNone(image_match)
+        self.assertIsNotNone(name_match)
+        image_urls = json.loads(image_match.group(1))
+        cat_names = json.loads(name_match.group(1))
+        self.assertEqual(cat_names, [
+            "Maine Coon", "Persa", "Siamês", "Bengala", "Ragdoll",
+            "British Shorthair", "Sphynx", "Scottish Fold", "Angorá Turco",
+            "Abissínio", "Azul Russo",
+        ])
+        self.assertEqual(len(image_urls), 11)
+        for index, image_url in enumerate(image_urls):
+            self.assertIn(f"simbolo-{index:02d}-transparente.png?v=20261121-1", image_url)
         token = self._campo(page, "aposta_slot_token")
 
-        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[7, 7, 7]) as draw:
+        # Cada um dos três rolos recebe seu próprio sorteio ponderado.
+        with patch("app_sqlite_dev.secrets.randbelow", return_value=7200) as draw:
             response = self._slot("0,01", csrf=self._csrf(page), token=token)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(draw.call_count, 3)
-        self.assertEqual(self._balance(user["user_id"]), 320)
+        self.assertEqual([item.args for item in draw.call_args_list], [(10000,)] * 3)
+        self.assertEqual(self._balance(user["user_id"]), 210)
         result_page = self.client.get("/caca-niqueis")
         html = result_page.get_data(as_text=True)
-        self.assertIn('data-symbol-1="7"', html)
-        self.assertIn('data-symbol-2="7"', html)
-        self.assertIn('data-symbol-3="7"', html)
-        self.assertIn('data-result-outcome="win"', html)
-        self.assertIn("Trinca de gatinhos! Você venceu!", html)
+        self.assertIn('data-symbol-1="4"', html)
+        self.assertIn('data-symbol-2="4"', html)
+        self.assertIn('data-symbol-3="4"', html)
+        self.assertIn('data-result-outcome="triple"', html)
+        self.assertIn("Três Ragdoll!", html)
+        self.assertIn("10× a aposta", html)
+        self.assertIn("Cat's Coins", html)
         self.assertNotRegex(html, r'name="(?:resultado|simbolos_sorteados)"')
         refreshed = self.client.get("/caca-niqueis").get_data(as_text=True)
         self.assertNotIn("data-symbol-1", refreshed)
-        self.assertEqual(self._balance(user["user_id"]), 320)
+        self.assertEqual(self._balance(user["user_id"]), 210)
 
-    def test_slot_derrota_historico_e_cpf_enviado_nao_muda_a_conta(self):
+    def test_slot_premio_ponderado_historico_e_cpf_enviado_nao_muda_a_conta(self):
         self._signup(self.cpf_a, "Conta Slot A", self.senha_a)
         self._signup(self.cpf_b, "Conta Slot B", self.senha_b, client=self.app.test_client())
         user_a = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
@@ -260,17 +282,60 @@ class TestAppSQLiteDev(unittest.TestCase):
         self._login()
         self._deposit("5,00", cpf_override=self.cpf_b)
         page = self.client.get("/caca-niqueis")
-        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[1, 2, 1]) as draw:
+        # 2.500 é o início da faixa Persa (20%, prêmio 3x).
+        with patch("app_sqlite_dev.secrets.randbelow", return_value=2500) as draw:
             self._slot("1,25", cpf_override=self.cpf_b, csrf=self._csrf(page), token=self._campo(page, "aposta_slot_token"))
         self.assertEqual(draw.call_count, 3)
-        self.assertEqual(self._balance(user_a["user_id"]), 375)
+        self.assertEqual(self._balance(user_a["user_id"]), 875)
         self.assertEqual(self._balance(user_b["user_id"]), 0)
         result = self.client.get("/caca-niqueis").get_data(as_text=True)
-        self.assertIn("Desta vez, os gatinhos não combinaram.", result)
-        self.assertIn("Gatos sorteados: 1 · 2 · 1", result)
+        self.assertIn("Três Persa!", result)
+        self.assertIn("3× a aposta", result)
         history = self.client.get("/historico").get_data(as_text=True)
-        self.assertIn("Caça-níqueis perdido", history)
-        self.assertIn("Gatos sorteados: 1 · 2 · 1", history)
+        self.assertIn("Trinca Cat&#39;s Coins", history)
+        self.assertIn("Persa · Persa · Persa", history)
+
+    def test_slot_json_sorteia_tres_vezes_credita_trinca_100x_e_recarrega_saldo_confirmado(self):
+        self._signup()
+        user = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        self._login()
+        self._deposit("1,00")
+        page = self.client.get("/caca-niqueis")
+        with patch("app_sqlite_dev.secrets.randbelow", return_value=9950) as draw:
+            response = self._slot(
+                "0,01", csrf=self._csrf(page),
+                token=self._campo(page, "aposta_slot_token"), accept_json=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(draw.call_count, 3)
+        payload = response.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["symbols"], [10, 10, 10])
+        self.assertEqual(payload["cat_name"], "Azul Russo")
+        self.assertEqual(payload["multiplier"], 100)
+        self.assertEqual(payload["old_balance_cents"], 100)
+        self.assertEqual(payload["prize_cents"], 100)
+        self.assertEqual(payload["balance_cents"], 200)
+        self.assertEqual(self._balance(user["user_id"]), 200)
+        refreshed = self.client.get("/caca-niqueis").get_data(as_text=True)
+        self.assertIn("2,00 Cat's Coins", refreshed)
+        self.assertNotIn("data-symbol-1", refreshed)
+
+    def test_slot_recusa_limite_antes_do_sorteio_e_renova_token_json(self):
+        self._signup()
+        self._login()
+        self._deposit("999999999,99")
+        page = self.client.get("/caca-niqueis")
+        with patch("app_sqlite_dev.secrets.randbelow") as draw:
+            response = self._slot(
+                "0,01", csrf=self._csrf(page),
+                token=self._campo(page, "aposta_slot_token"), accept_json=True,
+            )
+        self.assertEqual(response.status_code, 400)
+        draw.assert_not_called()
+        self.assertFalse(response.get_json()["ok"])
+        self.assertIn("prêmio máximo", response.get_json()["message"])
+        self.assertTrue(response.get_json()["next_token"])
 
     def test_slot_exige_login_csrf_e_token_de_uso_unico(self):
         self.assertEqual(self.client.get("/caca-niqueis").status_code, 302)
@@ -290,12 +355,12 @@ class TestAppSQLiteDev(unittest.TestCase):
 
         page = self.client.get("/caca-niqueis")
         csrf, token = self._csrf(page), self._campo(page, "aposta_slot_token")
-        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[0, 1, 2]) as draw:
+        with patch("app_sqlite_dev.secrets.randbelow", return_value=0) as draw:
             self._slot("1,00", csrf=csrf, token=token)
             duplicate = self._slot("1,00", csrf=csrf, token=token)
         self.assertEqual(duplicate.status_code, 302)
         self.assertEqual(draw.call_count, 3)
-        self.assertEqual(self._balance(user["user_id"]), 400)
+        self.assertEqual(self._balance(user["user_id"]), 700)
 
     def test_slot_usuarios_nao_autenticados_nao_acessam_dados(self):
         self.assertEqual(self.client.get("/jogos").status_code, 302)
@@ -307,10 +372,80 @@ class TestAppSQLiteDev(unittest.TestCase):
     def test_slot_tem_layout_responsivo_e_vista_reduzida(self):
         source = Path("static/css/estilo.css").read_text(encoding="utf-8")
         script = Path("static/js/caca_niqueis.js").read_text(encoding="utf-8")
+        coin_image = self.client.get("/static/imagens/cats-coins/moeda-original.png")
         self.assertIn("@media (max-width: 620px)", source)
         self.assertIn(".slot-reels", source)
+        self.assertIn(".slot-balance", source)
+        self.assertIn(".slot-flying-coin", source)
         self.assertIn("prefers-reduced-motion", source)
         self.assertIn("prefers-reduced-motion", script)
+        self.assertIn("AudioContext", script)
+        self.assertEqual(coin_image.status_code, 200)
+        self.assertEqual(coin_image.mimetype, "image/png")
+        self.assertEqual(hashlib.sha256(coin_image.data).hexdigest(), "fdd982848b83103a60ae6cbae23ff61d912dfe122b1525dba4fdbf8184133181")
+        coin_image.close()
+        for index in range(11):
+            symbol = self.client.get(f"/static/imagens/cats-coins/gatos/simbolo-{index:02d}-transparente.png")
+            self.assertEqual(symbol.status_code, 200)
+            self.assertEqual(symbol.mimetype, "image/png")
+            self.assertTrue(symbol.data.startswith(b"\x89PNG\r\n\x1a\n"))
+            self.assertEqual(symbol.data[25], 6)  # PNG RGBA com canal alfa
+            self.assertEqual(int.from_bytes(symbol.data[16:20], "big"), 362)
+            self.assertEqual(int.from_bytes(symbol.data[20:24], "big"), 362)
+            symbol.close()
+
+    def test_slot_pares_em_posicoes_distintas_creditam_um_terco_e_mostram_os_tres(self):
+        self._signup()
+        user = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        self._login()
+        self._deposit("5,00")
+        page = self.client.get("/caca-niqueis")
+        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[0, 2500, 0]) as draw:
+            response = self._slot(
+                "1,00", csrf=self._csrf(page), token=self._campo(page, "aposta_slot_token"),
+                accept_json=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(draw.call_count, 3)
+        payload = response.get_json()
+        self.assertEqual(payload["symbols"], [0, 1, 0])
+        self.assertEqual(payload["outcome"], "pair")
+        self.assertEqual(payload["cat_name"], "Maine Coon")
+        self.assertEqual(payload["multiplier"], 2)
+        self.assertEqual(payload["prize_cents"], 67)
+        self.assertEqual(payload["balance_cents"], 567)
+        self.assertIn("1/3 do prêmio completo", payload["message"])
+        self.assertEqual(self._balance(user["user_id"]), 567)
+        history = self.client.get("/historico").get_data(as_text=True)
+        self.assertIn("Par Cat&#39;s Coins", history)
+        self.assertIn("Maine Coon · Persa · Maine Coon", history)
+        self.assertIn("1/3 do prêmio completo", history)
+
+    def test_slot_tres_diferentes_debitam_aposta_sem_som_de_vitoria_no_resultado(self):
+        self._signup()
+        user = persistencia.consultar_usuario_por_cpf(self.database, self.cpf_a)
+        self._login()
+        self._deposit("5,00")
+        page = self.client.get("/caca-niqueis")
+        with patch("app_sqlite_dev.secrets.randbelow", side_effect=[0, 2500, 4500]) as draw:
+            response = self._slot(
+                "1,00", csrf=self._csrf(page), token=self._campo(page, "aposta_slot_token"),
+                accept_json=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(draw.call_count, 3)
+        payload = response.get_json()
+        self.assertEqual(payload["symbols"], [0, 1, 2])
+        self.assertEqual(payload["outcome"], "loss")
+        self.assertEqual(payload["delta_cents"], -100)
+        self.assertEqual(payload["prize_cents"], 0)
+        self.assertEqual(payload["balance_cents"], 400)
+        self.assertEqual(payload["title"], "Não foi dessa vez!")
+        self.assertEqual(self._balance(user["user_id"]), 400)
+        history = self.client.get("/historico").get_data(as_text=True)
+        self.assertIn("Rodada perdida", history)
+        self.assertIn("Maine Coon · Persa · Siamês", history)
+        self.assertIn("−1,00 Cat&#39;s Coins", history)
 
     def test_resultado_servidor_e_transmitido_sem_expor_campo_de_resultado_no_formulario(self):
         self._signup()

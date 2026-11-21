@@ -15,14 +15,51 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 from pathlib import Path
 from typing import Callable, Iterator
 
 
 VALOR_MAXIMO_CENTAVOS = 100_000_000_000  # R$ 1.000.000.000,00
 ARQUIVO_ESQUEMA = Path(__file__).with_name("esquema_financeiro.sql")
-VERSAO_ESQUEMA = 7
+VERSAO_ESQUEMA = 9
+
+# Faixas inteiras de 1/100 de ponto percentual: total exato de 10.000.
+# Nome da raça, peso em faixa de 1/100 de ponto percentual e multiplicador.
+CAT_COINS_GATOS = (
+    ("Maine Coon", 2500, 2),
+    ("Persa", 2000, 3),
+    ("Siamês", 1500, 5),
+    ("Bengala", 1200, 8),
+    ("Ragdoll", 900, 10),
+    ("British Shorthair", 700, 15),
+    ("Sphynx", 500, 20),
+    ("Scottish Fold", 300, 30),
+    ("Angorá Turco", 200, 40),
+    ("Abissínio", 150, 60),
+    ("Azul Russo", 50, 100),
+)
+CAT_COINS_TOTAL_PESOS = sum(item[1] for item in CAT_COINS_GATOS)
+
+
+def simbolo_cat_coins_por_sorteio(sorteio: object) -> int:
+    """Mapeia um sorteio inteiro [0, 10.000) para um gato ponderado."""
+    if isinstance(sorteio, bool) or not isinstance(sorteio, int):
+        raise ErroValidacao("O sorteio ponderado deve ser um inteiro.")
+    if not 0 <= sorteio < CAT_COINS_TOTAL_PESOS:
+        raise ErroValidacao("O sorteio ponderado está fora do intervalo.")
+    limite = 0
+    for simbolo, (_, peso, _) in enumerate(CAT_COINS_GATOS):
+        limite += peso
+        if sorteio < limite:
+            return simbolo
+    raise ErroValidacao("Não foi possível selecionar o símbolo.")
+
+
+def multiplicador_cat_coins(simbolo: object) -> int:
+    """Retorna o multiplicador fixo do símbolo de 0 a 10."""
+    numero = _numero_jogo(simbolo, "Símbolo sorteado")
+    return CAT_COINS_GATOS[numero][2]
 
 
 class ErroPersistencia(Exception):
@@ -78,6 +115,8 @@ class ResultadoOperacao:
     drawn_number: int | None = None
     replayed: bool = False
     slot_symbols: tuple[int, int, int] | None = None
+    slot_multiplier: int | None = None
+    slot_payout_symbol: int | None = None
 
 
 def _cpf_normalizado(cpf: str) -> str:
@@ -424,17 +463,22 @@ def _registrar_transacao(
     drawn_number: int | None = None,
     outcome: str | None = None,
     slot_symbols: tuple[int, int, int] | None = None,
+    slot_multiplier: int | None = None,
+    slot_payout_symbol: int | None = None,
 ) -> int:
     cursor = conexao.execute(
         """INSERT INTO financial_transactions
            (user_id, operation_type, delta_cents, occurred_at, source_file, source_row,
             amount_cents, wager_cents, chosen_number, drawn_number, outcome,
-            slot_symbol_1, slot_symbol_2, slot_symbol_3)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            slot_symbol_1, slot_symbol_2, slot_symbol_3, slot_multiplier,
+            slot_payout_symbol)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             user_id, operation_type, delta_cents, occurred_at, source_file, source_row,
             amount_cents, wager_cents, chosen_number, drawn_number, outcome,
             *(slot_symbols if slot_symbols is not None else (None, None, None)),
+            slot_multiplier,
+            slot_payout_symbol,
         ),
     )
     return int(cursor.lastrowid)
@@ -845,12 +889,12 @@ def registrar_aposta_caca_niqueis(
     *,
     ocorrido_em: str | None = None,
 ) -> ResultadoOperacao:
-    """Registra três rolos de gatos em uma transação financeira.
+    """Registra três sorteios independentes e aplica triple, pair ou loss.
 
-    Cada símbolo deve ser um inteiro de 0 a 10. O sorteador é injetado pelo
-    chamador e chamado somente após validar saldo para a derrota e capacidade
-    para o prêmio de 120 vezes a aposta. A vitória credita o prêmio sem débito
-    prévio; a derrota debita apenas a aposta.
+    O sorteador retorna exatamente três símbolos. O par paga um terço do
+    prêmio integral, arredondado uma única vez para o centavo mais próximo
+    (ROUND_HALF_UP); a derrota debita somente a aposta. A validação de saldo
+    para derrota e de espaço para 100x ocorre antes de invocar o sorteador.
     """
     aposta_centavos = converter_para_centavos(valor)
     if not callable(sortear_simbolos):
@@ -870,18 +914,39 @@ def registrar_aposta_caca_niqueis(
         saldo_atual = int(conta["balance_cents"])
         if aposta_centavos > saldo_atual:
             raise SaldoInsuficiente("Saldo insuficiente para cobrir uma eventual derrota.")
-        premio_maximo = aposta_centavos * 120
+        premio_maximo = aposta_centavos * 100
         if premio_maximo > VALOR_MAXIMO_CENTAVOS or saldo_atual + premio_maximo > VALOR_MAXIMO_CENTAVOS:
             raise LimiteFinanceiroExcedido("O saldo não comporta o prêmio máximo permitido.")
 
-        valores = sortear_simbolos()
-        if not isinstance(valores, (tuple, list)) or len(valores) != 3:
+        sorteio = sortear_simbolos()
+        if not isinstance(sorteio, (tuple, list)) or len(sorteio) != 3:
             raise ErroValidacao("O sorteador deve retornar exatamente três símbolos.")
-        simbolos = tuple(_numero_jogo(simbolo, "Símbolo sorteado") for simbolo in valores)
-        venceu = simbolos[0] == simbolos[1] == simbolos[2]
-        efeito = premio_maximo if venceu else -aposta_centavos
-        operation_type = "slot_win" if venceu else "slot_loss"
-        outcome = "win" if venceu else "loss"
+        simbolos = tuple(_numero_jogo(item, "Símbolo sorteado") for item in sorteio)
+        frequencias = {simbolo: simbolos.count(simbolo) for simbolo in set(simbolos)}
+        pares = [simbolo for simbolo, quantidade in frequencias.items() if quantidade == 2]
+        if len(frequencias) == 1:
+            outcome = "triple"
+            operation_type = "slot_win"
+            simbolo_premiado = simbolos[0]
+            multiplicador = multiplicador_cat_coins(simbolo_premiado)
+            efeito = aposta_centavos * multiplicador
+        elif pares:
+            outcome = "pair"
+            operation_type = "slot_pair"
+            simbolo_premiado = pares[0]
+            multiplicador = multiplicador_cat_coins(simbolo_premiado)
+            premio_completo_centavos = aposta_centavos * multiplicador
+            efeito = int(
+                (Decimal(premio_completo_centavos) / Decimal(3)).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                )
+            )
+        else:
+            outcome = "loss"
+            operation_type = "slot_loss"
+            simbolo_premiado = None
+            multiplicador = None
+            efeito = -aposta_centavos
 
         _iniciar_idempotencia(conexao, key_hash, user_id, "slot", instante)
         transaction_id = _registrar_transacao(
@@ -889,6 +954,8 @@ def registrar_aposta_caca_niqueis(
             wager_cents=aposta_centavos,
             outcome=outcome,
             slot_symbols=simbolos,
+            slot_multiplier=multiplicador,
+            slot_payout_symbol=simbolo_premiado,
         )
         resultado = ResultadoOperacao(
             transaction_id=transaction_id,
@@ -899,6 +966,8 @@ def registrar_aposta_caca_niqueis(
             amount_cents=aposta_centavos,
             outcome=outcome,
             slot_symbols=simbolos,
+            slot_multiplier=multiplicador,
+            slot_payout_symbol=simbolo_premiado,
         )
         _finalizar_idempotencia(conexao, key_hash, resultado)
     return resultado
@@ -917,7 +986,8 @@ def consultar_historico(
                 """SELECT ft.transaction_id, ft.operation_type, ft.delta_cents,
                           ft.occurred_at, d.amount_cents,
                           b.wager_cents, b.chosen_number, b.drawn_number, b.outcome,
-                          b.game_type, b.slot_symbol_1, b.slot_symbol_2, b.slot_symbol_3
+                          b.game_type, b.slot_symbol_1, b.slot_symbol_2, b.slot_symbol_3,
+                          b.slot_multiplier, b.slot_payout_symbol, b.slot_outcome
                    FROM financial_transactions AS ft
                    LEFT JOIN deposits AS d USING(transaction_id)
                    LEFT JOIN bets AS b USING(transaction_id)

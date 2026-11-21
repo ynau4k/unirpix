@@ -199,7 +199,7 @@ class TestPersistenciaSQLite(unittest.TestCase):
         metadata = self._sql(
             "SELECT schema_version, schema_sha256 FROM schema_metadata WHERE singleton=1"
         )[0]
-        self.assertEqual(metadata[0], 7)
+        self.assertEqual(metadata[0], 9)
         self.assertEqual(
             metadata[1],
             hashlib.sha256(persistencia.ARQUIVO_ESQUEMA.read_bytes()).hexdigest(),
@@ -860,7 +860,7 @@ class TestPersistenciaSQLite(unittest.TestCase):
         self.assertEqual(result.delta_cents, -700)
         self.assertEqual(result.balance_cents, 300)
 
-    def test_caca_niqueis_vitoria_credita_120x_e_preserva_simbolos(self):
+    def test_caca_niqueis_ponderado_credita_multiplicador_e_preserva_simbolos(self):
         persistencia.registrar_deposito(self.database, self.user_a, "2,00", "slot-seed-deposit-0001")
         draws = []
 
@@ -872,31 +872,91 @@ class TestPersistenciaSQLite(unittest.TestCase):
             self.database, self.user_a, "0,01", controlled_draw, "slot-win-token-00000001"
         )
         self.assertEqual(draws, [1])
-        self.assertEqual(result.outcome, "win")
+        self.assertEqual(result.outcome, "triple")
         self.assertEqual(result.slot_symbols, (6, 6, 6))
-        self.assertEqual(result.delta_cents, 120)
-        self.assertEqual(result.balance_cents, 320)
+        self.assertEqual(result.slot_multiplier, 20)
+        self.assertEqual(result.delta_cents, 20)
+        self.assertEqual(result.balance_cents, 220)
         rows = self._sql(
             "SELECT operation_type, wager_cents, slot_symbol_1, slot_symbol_2, "
-            "slot_symbol_3, delta_cents FROM financial_transactions WHERE operation_type LIKE 'slot_%'"
+            "slot_symbol_3, slot_multiplier, delta_cents FROM financial_transactions WHERE operation_type LIKE 'slot_%'"
         )
-        self.assertEqual(tuple(rows[0]), ("slot_win", 1, 6, 6, 6, 120))
+        self.assertEqual(tuple(rows[0]), ("slot_win", 1, 6, 6, 6, 20, 20))
 
-    def test_caca_niqueis_derrota_debita_somente_a_aposta(self):
+    def test_tres_gatos_iguais_creditam_premio_completo(self):
         persistencia.registrar_deposito(self.database, self.user_a, "10,00", "slot-seed-deposit-0002")
         result = persistencia.registrar_aposta_caca_niqueis(
-            self.database, self.user_a, "7,00", lambda: (2, 3, 2), "slot-loss-token-00000001"
+            self.database, self.user_a, "7,00", lambda: (2, 2, 2), "slot-win-token-00000002"
+        )
+        self.assertEqual(result.outcome, "triple")
+        self.assertEqual(result.slot_symbols, (2, 2, 2))
+        self.assertEqual(result.slot_multiplier, 5)
+        self.assertEqual(result.delta_cents, 3500)
+        self.assertEqual(result.balance_cents, 4500)
+        history = persistencia.consultar_historico(self.database, self.user_a)
+        slot = next(row for row in history if row.get("operation_type") == "slot_win")
+        self.assertEqual((slot["slot_symbol_1"], slot["slot_symbol_2"], slot["slot_symbol_3"]), (2, 2, 2))
+
+    def test_pares_em_todas_as_posicoes_pagamento_um_terco_arredondado(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "10,00", "slot-pair-seed-00001")
+        for index, symbols in enumerate(((2, 3, 2), (3, 2, 2), (2, 2, 3))):
+            result = persistencia.registrar_aposta_caca_niqueis(
+                self.database, self.user_a, "0,10", lambda value=symbols: value,
+                f"slot-pair-token-{index:08d}",
+            )
+            self.assertEqual(result.outcome, "pair")
+            self.assertEqual(result.slot_symbols, symbols)
+            self.assertEqual(result.slot_payout_symbol, 2)
+            self.assertEqual(result.slot_multiplier, 5)
+            self.assertEqual(result.delta_cents, 17)  # 50 centavos / 3, HALF_UP
+        self.assertEqual(persistencia.consultar_conta(self.database, self.user_a)["balance_cents"], 1051)
+
+    def test_tres_diferentes_debitam_somente_a_aposta_e_preservam_tres_resultados(self):
+        persistencia.registrar_deposito(self.database, self.user_a, "10,00", "slot-loss-seed-000001")
+        result = persistencia.registrar_aposta_caca_niqueis(
+            self.database, self.user_a, "1,25", lambda: (0, 1, 2), "slot-loss-token-000001"
         )
         self.assertEqual(result.outcome, "loss")
-        self.assertEqual(result.delta_cents, -700)
-        self.assertEqual(result.balance_cents, 300)
-        history = persistencia.consultar_historico(self.database, self.user_a)
-        slot = next(row for row in history if row.get("operation_type") == "slot_loss")
-        self.assertEqual((slot["slot_symbol_1"], slot["slot_symbol_2"], slot["slot_symbol_3"]), (2, 3, 2))
+        self.assertEqual(result.delta_cents, -125)
+        self.assertIsNone(result.slot_multiplier)
+        self.assertIsNone(result.slot_payout_symbol)
+        self.assertEqual(result.balance_cents, 875)
+        history = next(
+            row for row in persistencia.consultar_historico(self.database, self.user_a)
+            if row.get("operation_type") == "slot_loss"
+        )
+        self.assertEqual(tuple(history[f"slot_symbol_{i}"] for i in range(1, 4)), (0, 1, 2))
+        self.assertEqual(history["delta_cents"], -125)
+
+    def test_probabilidades_cat_coins_cobrem_intervalo_exato_e_multiplicadores(self):
+        pesos = [item[1] for item in persistencia.CAT_COINS_GATOS]
+        self.assertEqual(pesos, [2500, 2000, 1500, 1200, 900, 700, 500, 300, 200, 150, 50])
+        self.assertEqual([item[2] for item in persistencia.CAT_COINS_GATOS], [2, 3, 5, 8, 10, 15, 20, 30, 40, 60, 100])
+        self.assertEqual(
+            [item[0] for item in persistencia.CAT_COINS_GATOS],
+            ["Maine Coon", "Persa", "Siamês", "Bengala", "Ragdoll", "British Shorthair",
+             "Sphynx", "Scottish Fold", "Angorá Turco", "Abissínio", "Azul Russo"],
+        )
+        self.assertEqual(sum(pesos), 10000)
+        inicio = 0
+        for simbolo, peso in enumerate(pesos):
+            with self.subTest(simbolo=simbolo):
+                self.assertEqual(persistencia.simbolo_cat_coins_por_sorteio(inicio), simbolo)
+                self.assertEqual(persistencia.simbolo_cat_coins_por_sorteio(inicio + peso - 1), simbolo)
+                self.assertEqual(
+                    persistencia.multiplicador_cat_coins(simbolo),
+                    persistencia.CAT_COINS_GATOS[simbolo][2],
+                )
+            inicio += peso
+        self.assertEqual(inicio, persistencia.CAT_COINS_TOTAL_PESOS)
+        self.assertEqual(persistencia.simbolo_cat_coins_por_sorteio(9999), 10)
+        for invalid in (-1, 10000, True, 1.5):
+            with self.subTest(invalid=invalid), self.assertRaises(persistencia.ErroValidacao):
+                persistencia.simbolo_cat_coins_por_sorteio(invalid)
 
     def test_caca_niqueis_valida_antes_de_sortear_e_rejeita_valores_invalidos(self):
         calls = []
-        draw = lambda: calls.append(True) or (1, 1, 1)
+        draw = lambda: calls.append(True) or 1
         with self.assertRaises(persistencia.SaldoInsuficiente):
             persistencia.registrar_aposta_caca_niqueis(
                 self.database, self.user_a, "0,01", draw, "slot-no-balance-token-01"
@@ -918,11 +978,11 @@ class TestPersistenciaSQLite(unittest.TestCase):
 
     def test_caca_niqueis_recusa_sorteio_malformado_sem_gravar_operacao(self):
         persistencia.registrar_deposito(self.database, self.user_a, "1,00", "slot-seed-deposit-0003")
-        for invalid in ((1, 2), (1, 2, 11), (1, 2, 3.0), "1,1,1"):
+        for invalid in (11, -1, 3.0, True, (1, 2), (1, 2, 11)):
             with self.subTest(invalid=invalid):
                 with self.assertRaises(persistencia.ErroValidacao):
                     persistencia.registrar_aposta_caca_niqueis(
-                        self.database, self.user_a, "0,01", lambda value=invalid: value,
+                    self.database, self.user_a, "0,01", lambda value=invalid: value,
                         f"slot-invalid-draw-{len(str(invalid)):02d}"
                     )
         self.assertEqual(self._sql("SELECT COUNT(*) FROM financial_transactions WHERE operation_type LIKE 'slot_%'")[0][0], 0)
@@ -947,8 +1007,8 @@ class TestPersistenciaSQLite(unittest.TestCase):
                     connection.execute(
                         "INSERT INTO financial_transactions "
                         "(user_id,operation_type,delta_cents,occurred_at,wager_cents,outcome,"
-                        "slot_symbol_1,slot_symbol_2,slot_symbol_3) "
-                        "VALUES (?,'slot_win',120,'2026-02-01T00:00:00Z',1,'win',?,?,?)",
+                        "slot_symbol_1,slot_symbol_2,slot_symbol_3,slot_multiplier) "
+                        "VALUES (?,'slot_win',2,'2026-02-01T00:00:00Z',1,'win',?,?,?,2)",
                         (self.user_a, *symbols),
                     )
                 connection.rollback()
